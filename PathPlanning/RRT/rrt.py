@@ -12,7 +12,7 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 
-show_animation = True
+show_animation = False
 
 from typing import Dict
 from rsoccer_gym.Entities.Robot import Robot
@@ -93,7 +93,7 @@ class RRT:
         return obstacles
 
 
-    def planning(self, animation=True):
+    def planning(self, animation=False):
         """
         rrt path planning
 

@@ -3,8 +3,6 @@ import rsoccer_gym
 from gymnasium.envs.registration import register
 from utils.CLI import cli, Difficulty
 import pygame
-import sys
-sys.path.append('/home/live/Documents/seletiva/PythonRobotics/')
 
 args = cli()
 

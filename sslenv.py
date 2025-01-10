@@ -11,15 +11,10 @@ from random_agent import RandomAgent
 import random
 import pygame
 from utils.CLI import Difficulty
-from RRTstar.rrt_star import RRTStar, Node
-from RRTstar.rrt_start_pr import RRTStar as RRTStarPr
-from PathPlanning.RRT.rrt import RRT
-from pprint import pprint
-from rsoccer_gym.Entities import Field, Frame, Robot
+from typing import Dict, List, Optional
 from rsoccer_gym.Render import COLORS, SSLRenderField, SSLRobot
 from rsoccer_gym.Render import Ball as BallRender
 from rsoccer_gym.Simulators.rsim import RSimSSL
-
 
 class SSLExampleEnv(SSLBaseEnv):
     def __init__(self, render_mode="human", difficulty=Difficulty.EASY):
@@ -52,11 +47,6 @@ class SSLExampleEnv(SSLBaseEnv):
 
         self.gen_target_prob = 0.003
 
-        self.path = None
-        self.p = 0
-
-        self.target_reached = False
-
         if field == 2:
             self.field_renderer = SSLHRenderField()
             self.window_size = self.field_renderer.window_size
@@ -66,108 +56,17 @@ class SSLExampleEnv(SSLBaseEnv):
         return np.array([ball.x, ball.y, robot.x, robot.y])
 
     def _get_commands(self, actions):
-        # Keep only the last M target points
-        for target in self.targets:
-            if target not in self.all_points:
-                self.all_points.push(target)
-        
-        # Visible path drawing control
-        # for i in self.my_agents:
-        #     self.robots_paths[i].push(Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y))
 
-        # Check if the robot is close to the target
-        for j in range(len(self.targets) - 1, -1, -1):
-            for i in self.my_agents:
-                if Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y).dist_to(self.targets[j]) < self.min_dist:
-                    self.targets.pop(j)
-                    self.target_reached = True
-                    print("Target reached", self.target_reached)
-                    break
-        
-        # Check if there are no more targets
-        if len(self.targets) == 0:
-            self.rounds -= 1
-
-        # Finish the phase and increase the number of targets for the next phase
-        if self.rounds == 0:
-            self.rounds = self.max_rounds
-            if self.targets_per_round < self.max_targets:
-                self.targets_per_round += 1
-                self.blue_agents.pop(len(self.my_agents))
-                self.my_agents[len(self.my_agents)] = ExampleAgent(len(self.my_agents), False)
-
-        # Generate new targets
-        if len(self.targets) == 0:
-            for i in range(self.targets_per_round):
-                self.targets.append(Point(self.x(), self.y()))
-        
         obstacles = {id: robot for id, robot in self.frame.robots_blue.items()}
         for i in range(0, self.n_robots_yellow):
             obstacles[i + self.n_robots_blue] = self.frame.robots_yellow[i]
         teammates = {id: self.frame.robots_blue[id] for id in self.my_agents.keys()}
 
-
         remove_self = lambda robots, selfId: {id: robot for id, robot in robots.items() if id != selfId}
-
-        x = self.frame.robots_blue[0].x
-        y = self.frame.robots_blue[0].y
-        x_target = self.targets[0].x
-        y_target = self.targets[0].y
-        opponents = remove_self(obstacles, 0)
-     
-
-
-        # print(self.target_reached)
-        point = None
-        useRRTstart = True
-
-
-        if useRRTstart:
-
-
-            if self.steps < 3 or self.target_reached or self.path is None:
-                # rrt_star = RRTStarPr([x, y], [x_target, y_target], opponents, play_area = [6, 4])
-                rrt_star = RRT([x, y], [x_target, y_target], opponents, [-3.1, 3.1], play_area = [-3.1, 3.1, -2.1, 2.1])
-                # rrt_star = RRTStar([x, y], 
-                #                     [x_target, y_target], 
-                #                     len(self.my_agents[0].opponents.items()),  [6, 4], 
-                #                     opponents=opponents)
-
-                self.path = rrt_star.planning()
-                # print(rrt_star.path)
-                # self.path = rrt_star.path
-                self.target_reached = False
-                self.p = 0
-                print("New path finished", self.steps   )
-                print(f"Path: {self.path}")
-                if self.path is None:
-                    print("Path is invalid!")
-                    print(f"Invalid path: {self.path}")
-
-            if self.path is not None:
-                # clear queue
-                self.robots_paths[0] = FixedQueue(40)
-                for x, y in self.path:
-                    # print(x, y)
-                    self.robots_paths[0].push(Point(x, y))
-
-
-
-            if self.steps > 50 and self.path is not None:
-                
-                point = Point(self.path[self.p][0], self.path[self.p][1])
-        
-                if Point(self.frame.robots_blue[0].x, self.frame.robots_blue[0].y).dist_to(point) < 0.1:
-                    self.p += 1
-                    if self.p >= len(self.path):
-                        self.p = 0
-
-
 
         myActions = []
         for i in self.my_agents.keys():
-            # print(f"point {point}")
-            action = self.my_agents[i].step(point, self.frame.robots_blue[i], remove_self(obstacles, i), teammates, self.targets)
+            action = self.my_agents[i].step(self.frame.robots_blue[i], remove_self(obstacles, i), teammates, self.targets)
             myActions.append(action)
 
         others_actions = []
@@ -186,12 +85,65 @@ class SSLExampleEnv(SSLBaseEnv):
 
                 others_actions.append(self.yellow_agents[i].step(self.frame.robots_yellow[i], obstacles, dict(), random_target, True))
 
-        # print(f"Num steps {self.steps}")
-     
-
-
-        # print(f"paths: {self.robots_paths}")
         return myActions + others_actions
+
+    def update_path_and_targets(self):
+        # Keep only the last M target points
+        for target in self.targets:
+            if target not in self.all_points:
+                self.all_points.push(target)
+                
+        # Visible path drawing control
+        for i in self.my_agents:
+            self.robots_paths[i].push(Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y))
+
+        # Check if the robot is close to the target
+        for j in range(len(self.targets) - 1, -1, -1):
+            for i in self.my_agents:
+                if Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y).dist_to(self.targets[j]) < self.min_dist:
+                    self.targets.pop(j)
+                    break
+        
+        # Check if there are no more targets
+        if len(self.targets) == 0:
+            self.rounds -= 1
+
+        # Finish the phase and increase the number of targets for the next phase
+        if self.rounds == 0:
+            self.rounds = self.max_rounds
+            if self.targets_per_round < self.max_targets:
+                self.targets_per_round += 1
+                self.blue_agents.pop(len(self.my_agents))
+                self.my_agents[len(self.my_agents)] = ExampleAgent(len(self.my_agents), False)
+
+        # Generate new targets
+        if len(self.targets) == 0:
+            for i in range(self.targets_per_round):
+                self.targets.append(Point(self.x(), self.y()))
+
+    def step(self, action):
+        self.steps += 1
+        # print(f"Steps: {self.steps}")
+        # Join agent action with environment actions
+        commands: List[Robot] = self._get_commands(action)
+        # Send command to simulator
+        # print(f"Command: {commands}")
+        self.rsim.send_commands(commands)
+        self.sent_commands = commands
+
+        # Get Frame from simulator
+        self.last_frame = self.frame
+        self.frame = self.rsim.get_frame()
+
+        # Calculate environment observation, reward and done condition
+        observation = self._frame_to_observations()
+        reward, done = self._calculate_reward_and_done()
+
+        self.update_path_and_targets()
+
+        if self.render_mode == "human":
+            self.render()
+        return observation, reward, done, False, {}
 
     def _calculate_reward_and_done(self):
         return 0, False
@@ -237,8 +189,8 @@ class SSLExampleEnv(SSLBaseEnv):
 
         return pos_frame
     
+    def _render_modified(self):
 
-    def _render(self):
         def pos_transform(pos_x, pos_y):
             return (
                 int(pos_x * self.field_renderer.scale + self.field_renderer.center_x),
@@ -277,8 +229,19 @@ class SSLExampleEnv(SSLBaseEnv):
             )
             rbt.draw(self.window_surface)
         ball.draw(self.window_surface)
+  
+    def _render(self):
 
+        def pos_transform(pos_x, pos_y):
+            return (
+                int(pos_x * self.field_renderer.scale + self.field_renderer.center_x),
+                int(pos_y * self.field_renderer.scale + self.field_renderer.center_y),
+            )
 
+        # Modified version of render from SSLBaseEnv to change agent color 
+        
+        self._render_modified()
+        
         for target in self.targets:
             self.draw_target(
                 self.window_surface,
@@ -296,6 +259,23 @@ class SSLExampleEnv(SSLBaseEnv):
             if len(self.robots_paths[i]) > 1:
                 my_path = [pos_transform(*p) for p in self.robots_paths[i]]
                 pygame.draw.lines(self.window_surface, (255, 0, 0), False, my_path, 1)
+
+
+        # # add path rendering
+        # for agent_id, agent in self.my_agents.items():
+        #     if hasattr(agent, 'get_planned_path'):
+        #         # print("Ok")
+        #         planned_path = agent.get_planned_path()
+        #         if planned_path:
+        #             print(planned_path)
+        #             # Convert path points to screen coordinates
+        #             path_points = [pos_transform(p.x, p.y) for p in planned_path]
+        #             # Draw planned path in yellow
+        #             pygame.draw.lines(self.window_surface, (255, 255, 0), False, path_points, 2)
+        #             # Draw waypoints
+        #             for point in path_points:
+        #                 pygame.draw.circle(self.window_surface, (255, 255, 0), point, 4)
+            
 
     def draw_target(self, screen, transformer, point, color):
         x, y = transformer(point.x, point.y)

@@ -19,12 +19,14 @@ class BaseAgent:
         self.angle_vel = float(0)
 
     def step(self, 
-             point,
+             point: Point,
              self_robot : Robot, 
              opponents: dict[int, Robot] = dict(), 
              teammates: dict[int, Robot] = dict(), 
              targets: list[Point] = [], 
              keep_targets=False,) -> Robot:
+
+        # print(f"self robot: {self_robot}")
 
         self.reset()
         self.pos = Point(self_robot.x, self_robot.y)
