@@ -49,8 +49,6 @@ class Navigation:
     distance_to_target = robot_position.dist_to(target)
     kp = ANGLE_KP
 
-    # print(f"Distancia estranha: {distance_to_target}")
-
     # Use proportional speed to decelerate when getting close to desired target
     proportional_velocity_factor = PROP_VELOCITY_MIN_FACTOR
     min_proportional_distance = MIN_DIST_TO_PROP_VELOCITY
@@ -70,5 +68,4 @@ class Navigation:
 
       return target_velocity, -kp * d_theta
     else:
-      # print("AAAAAAAAAAAAAAAAAa")
       return Point(0.0, 0.0), -kp * d_theta

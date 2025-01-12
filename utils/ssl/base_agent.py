@@ -18,15 +18,11 @@ class BaseAgent:
         self.next_vel = Point(0, 0)
         self.angle_vel = float(0)
 
-    def step(self, 
-             point: Point,
-             self_robot : Robot, 
+    def step(self, self_robot : Robot, 
              opponents: dict[int, Robot] = dict(), 
              teammates: dict[int, Robot] = dict(), 
              targets: list[Point] = [], 
-             keep_targets=False,) -> Robot:
-
-        # print(f"self robot: {self_robot}")
+             keep_targets=False) -> Robot:
 
         self.reset()
         self.pos = Point(self_robot.x, self_robot.y)
@@ -42,7 +38,7 @@ class BaseAgent:
         self.opponents = opponents.copy()
         self.teammates = teammates.copy()
 
-        self.decision(point)
+        self.decision()
         self.post_decision()
 
         return Robot( id=self.id, yellow=self.yellow,

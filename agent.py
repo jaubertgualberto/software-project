@@ -4,12 +4,14 @@ import numpy as np
 from utils.Point import Point
 from rsoccer_gym.Entities import Robot
 from PathPlanning.RRT.rrt import RRT
-
+from PathPlanning.AStar.a_star import AStarPlanner
+from PathPlanning.DStar.dstar import Dstar
 
 class ExampleAgent(BaseAgent):
     def __init__(self, id=0, yellow=False):
         super().__init__(id, yellow)
-        self.planned_path = [] 
+        self.robot_radius = 0.09
+        self.planned_path = []  
 
     def step(self, 
              self_robot : Robot, 
@@ -26,40 +28,41 @@ class ExampleAgent(BaseAgent):
 
         self.decision(opponents)
         self.post_decision()
-        # print("Teste")
 
         return Robot( id=self.id, yellow=self.yellow,
                       v_x=self.next_vel.x, v_y=self.next_vel.y, v_theta=self.angle_vel)
+
+    
 
     def decision(self, opponents: dict[int, Robot] = dict()):
         if len(self.targets) == 0:
             return
         
-        # Max and min values for the random points (max and min field lenght )
-        rand_area = [-3.1, 3.1]
-        play_area = [-3.1, 3.1, -2.1, 2.1]
+        
+        a_star = AStarPlanner([point.x for point in opponents.values()], [point.y for point in opponents.values()], 0.08, self.robot_radius + 0.21 )
+        path_x, path_y = a_star.planning(self.robot.x, self.robot.y, self.targets[0].x, self.targets[0].y)
+        
+        self.planned_path = [Point(x, y) for x, y in zip(path_x, path_y)]
 
-        print(f"Robots pos: {self.robot.x, self.robot.y}")
+        if self.planned_path and len(self.planned_path) > 0:
+            
+            
+            self.planned_path = self.planned_path[::-1]
+            
 
-        # print("Planning path...")
-        path = RRT([self.pos.x, self.pos.y], [self.targets[0].x, self.targets[0].y], 
-                       opponents, rand_area=rand_area, play_area=play_area) \
-                        .planning(animation=False)
-        # print("Planning completed")
+            if len(self.planned_path) > 0:
+                # Use first waypoint for immediate navigation
+                i = 0 if len(self.planned_path) == 1 else 1 if len(self.planned_path) == 2 else 2
 
-        if path and len(path) > 0:
-            # Store full path
-            self.planned_path = [
-                Point(*points)
-                for points in path
-            ]
-            # print("Path found")
-            print("Path: ", self.planned_path)
-            next_point = Point(path[0][0], path[0][1])
+                next_point = Point(self.planned_path[i][0], self.planned_path[i][1])
 
-            target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, next_point)
-            # self.set_angle_vel(target_angle_velocity)
-            # self.set_vel(target_velocity)
+                # print(f"Next point: {next_point}, Target point: {self.targets[0]}, robot pos: {self.robot.x, self.robot.y}")
+
+
+                target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, next_point)
+                self.set_vel(target_velocity)
+                self.set_angle_vel(target_angle_velocity)
+
         else:
             # print("Invalid path!")
             self.planned_path = []

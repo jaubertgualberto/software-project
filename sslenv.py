@@ -261,20 +261,28 @@ class SSLExampleEnv(SSLBaseEnv):
                 pygame.draw.lines(self.window_surface, (255, 0, 0), False, my_path, 1)
 
 
-        # # add path rendering
-        # for agent_id, agent in self.my_agents.items():
-        #     if hasattr(agent, 'get_planned_path'):
-        #         # print("Ok")
-        #         planned_path = agent.get_planned_path()
-        #         if planned_path:
-        #             print(planned_path)
-        #             # Convert path points to screen coordinates
-        #             path_points = [pos_transform(p.x, p.y) for p in planned_path]
-        #             # Draw planned path in yellow
-        #             pygame.draw.lines(self.window_surface, (255, 255, 0), False, path_points, 2)
-        #             # Draw waypoints
-        #             for point in path_points:
-        #                 pygame.draw.circle(self.window_surface, (255, 255, 0), point, 4)
+        # Render planned paths for each agent
+        for agent_id, agent in self.my_agents.items():
+            if hasattr(agent, 'get_planned_path'):
+                planned_path = agent.get_planned_path()
+                if planned_path and len(planned_path) > 0:
+                    # Convert path points to screen coordinates
+                    path_points = [pos_transform(p.x, p.y) for p in planned_path]
+                    
+                    # Draw points first
+                    for point in path_points:
+                        pygame.draw.circle(self.window_surface, (255, 255, 0), point, 4)
+                    
+                    # Draw lines only if we have 2 or more points
+                    if len(path_points) >= 2:
+                        pygame.draw.lines(self.window_surface, (255, 255, 0), False, path_points, 2)
+                        
+                    # Highlight start and end points
+                    if path_points:
+                        # Start point in green
+                        pygame.draw.circle(self.window_surface, (0, 255, 0), path_points[0], 6, 2)
+                        # End point in red
+                        pygame.draw.circle(self.window_surface, (255, 0, 0), path_points[-1], 6, 2)
             
 
     def draw_target(self, screen, transformer, point, color):

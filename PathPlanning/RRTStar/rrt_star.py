@@ -5,6 +5,8 @@ Path planning Sample Code with RRT*
 author: Atsushi Sakai(@Atsushi_twi)
 
 """
+from typing import Dict
+from rsoccer_gym.Entities.Robot import Robot
 
 import math
 import sys
@@ -55,6 +57,16 @@ class RRTStar(RRT):
         self.goal_node = self.Node(goal[0], goal[1])
         self.search_until_max_iter = search_until_max_iter
         self.node_list = []
+        self.obstacle_list = self.opponents_to_obstacles(obstacle_list)
+
+    def opponents_to_obstacles(self, opponents: Dict[int, Robot]):
+        obstacles = []
+        for robot in opponents.values():
+            cord = (robot.x, robot.y, self.robot_radius+0.01)
+            obstacles.append(cord)
+            # print("opponent", cord) 
+        return obstacles
+
 
     def planning(self, animation=True):
         """
@@ -65,7 +77,7 @@ class RRTStar(RRT):
 
         self.node_list = [self.start]
         for i in range(self.max_iter):
-            print("Iter:", i, ", number of nodes:", len(self.node_list))
+            # print("Iter:", i, ", number of nodes:", len(self.node_list))
             rnd = self.get_random_node()
             nearest_ind = self.get_nearest_node_index(self.node_list, rnd)
             new_node = self.steer(self.node_list[nearest_ind], rnd,
