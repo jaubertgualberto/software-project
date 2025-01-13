@@ -6,7 +6,8 @@ from rsoccer_gym.Utils import KDTree
 from utils.Point import Point
 from utils.FixedQueue import FixedQueue
 from utils.ssl.small_field import SSLHRenderField
-from agent import ExampleAgent
+from dstartAgent import DStarLiteAgent
+
 from random_agent import RandomAgent
 import random
 import pygame
@@ -41,7 +42,7 @@ class SSLExampleEnv(SSLBaseEnv):
         self.rounds = self.max_rounds  ## because of the first round
         self.targets_per_round = 1
 
-        self.my_agents = {0: ExampleAgent(0, False)}
+        self.my_agents = {0: DStarLiteAgent(0, False)}
         self.blue_agents = {i: RandomAgent(i, False) for i in range(1, 11)}
         self.yellow_agents = {i: RandomAgent(i, True) for i in range(0, 11)}
 
@@ -113,8 +114,8 @@ class SSLExampleEnv(SSLBaseEnv):
             self.rounds = self.max_rounds
             if self.targets_per_round < self.max_targets:
                 self.targets_per_round += 1
-                self.blue_agents.pop(len(self.my_agents))
-                self.my_agents[len(self.my_agents)] = ExampleAgent(len(self.my_agents), False)
+                # self.blue_agents.pop(len(self.my_agents))
+                # self.my_agents[len(self.my_agents)] = ExampleAgent(len(self.my_agents), False)
 
         # Generate new targets
         if len(self.targets) == 0:

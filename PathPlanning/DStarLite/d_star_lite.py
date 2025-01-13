@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import random
 import numpy as np
 
-show_animation = True
+show_animation = False
 pause_time = 0.001
 p_create_random_obstacle = 0
 
@@ -57,12 +57,11 @@ class DStarLite:
         # Ensure that within the algorithm implementation all node coordinates
         # are indices in the grid and extend
         # from 0 to abs(<axis>_max - <axis>_min)
-        self.x_min_world = int(min(ox))
-        self.y_min_world = int(min(oy))
-        self.x_max = int(abs(max(ox) - self.x_min_world))
-        self.y_max = int(abs(max(oy) - self.y_min_world))
-        self.obstacles = [Node(x - self.x_min_world, y - self.y_min_world)
-                          for x, y in zip(ox, oy)]
+        self.x_min_world = 0
+        self.y_min_world = 0
+        self.x_max = 35
+        self.y_max = 35
+        self.obstacles = [Node(x, y) for x, y in zip(ox, oy)]
         self.obstacles_xy = np.array(
             [[obstacle.x, obstacle.y] for obstacle in self.obstacles]
         )
@@ -201,9 +200,11 @@ class DStarLite:
                 for s in self.pred(u) + [u]:
                     self.update_vertex(s)
             self.U.sort(key=lambda x: x[1])
+
             start_key_not_updated = self.compare_keys(
                 self.U[0][1], self.calculate_key(self.start)
             )
+
             rhs_not_equal_to_g = self.rhs[self.start.x][self.start.y] != \
                 self.g[self.start.x][self.start.y]
 
@@ -322,7 +323,7 @@ class DStarLite:
                 plt.pause(pause_time)
             changed_vertices = self.detect_changes()
             if len(changed_vertices) != 0:
-                print("New obstacle detected")
+                # print("New obstacle detected")
                 self.km += self.h(last)
                 last = self.start
                 for u in changed_vertices:
@@ -346,7 +347,7 @@ class DStarLite:
                         current_path_image = self.display_path(current_path,
                                                                ".c")
                         plt.pause(pause_time)
-        print("Path found")
+        # print("Path found")
         return True, pathx, pathy
 
 
@@ -417,6 +418,9 @@ def main():
                   [i for i in range(0, 21)] + [0 for _ in range(0, 20)]]
     spoofed_oy = [[], [], [],
                   [20 for _ in range(0, 21)] + [i for i in range(0, 20)]]
+
+    print(spoofed_ox)
+    print(spoofed_oy)
 
     dstarlite = DStarLite(ox, oy)
     dstarlite.main(Node(x=sx, y=sy), Node(x=gx, y=gy),

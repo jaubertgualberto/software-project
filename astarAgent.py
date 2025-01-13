@@ -1,17 +1,20 @@
+
 from utils.ssl.Navigation import Navigation
 from utils.ssl.base_agent import BaseAgent
-import numpy as np
+from utils.grid_converter import GridConverter
+from typing import List
 from utils.Point import Point
 from rsoccer_gym.Entities import Robot
-from PathPlanning.RRT.rrt import RRT
 from PathPlanning.AStar.a_star import AStarPlanner
-from PathPlanning.DStar.dstar import Dstar
 
-class ExampleAgent(BaseAgent):
+
+class AStarAgent(BaseAgent):
     def __init__(self, id=0, yellow=False):
         super().__init__(id, yellow)
         self.robot_radius = 0.09
         self.planned_path = []  
+        self.grid_converter = GridConverter(field_length=9.0, field_width=6.0)
+        self.render_path = []
 
     def step(self, 
              self_robot : Robot, 
@@ -38,11 +41,12 @@ class ExampleAgent(BaseAgent):
         if len(self.targets) == 0:
             return
         
-        
-        a_star = AStarPlanner([point.x for point in opponents.values()], [point.y for point in opponents.values()], 0.08, self.robot_radius + 0.21 )
+        a_star = AStarPlanner([point.x for point in opponents.values()], [point.y for point in opponents.values()], 0.1, self.robot_radius + 0.21 )
         path_x, path_y = a_star.planning(self.robot.x, self.robot.y, self.targets[0].x, self.targets[0].y)
-        
+
+
         self.planned_path = [Point(x, y) for x, y in zip(path_x, path_y)]
+        self.render_path = self.planned_path
 
         if self.planned_path and len(self.planned_path) > 0:
             
@@ -71,6 +75,6 @@ class ExampleAgent(BaseAgent):
     def post_decision(self):
         pass
 
-    def get_planned_path(self):
+    def get_render_path(self):
         """Return the current planned path for rendering"""
-        return self.planned_path
+        return self.render_path

@@ -7,7 +7,7 @@ from utils.Geometry import Geometry
 
 
 PROP_VELOCITY_MIN_FACTOR: float = 0.1
-MAX_VELOCITY: float = 1.5
+MAX_VELOCITY: float = 2
 ANGLE_EPSILON: float = 0.1
 ANGLE_KP: float = 5
 MIN_DIST_TO_PROP_VELOCITY: float = 720
