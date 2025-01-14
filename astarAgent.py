@@ -2,10 +2,13 @@
 from utils.ssl.Navigation import Navigation
 from utils.ssl.base_agent import BaseAgent
 from utils.grid_converter import GridConverter
+import numpy as np
 from typing import List
 from utils.Point import Point
 from rsoccer_gym.Entities import Robot
+from PathPlanning.RRT.rrt import RRT
 from PathPlanning.AStar.a_star import AStarPlanner
+from PathPlanning.DStarLite.d_star_lite import DStarLite
 
 
 class AStarAgent(BaseAgent):
@@ -14,7 +17,6 @@ class AStarAgent(BaseAgent):
         self.robot_radius = 0.09
         self.planned_path = []  
         self.grid_converter = GridConverter(field_length=9.0, field_width=6.0)
-        self.render_path = []
 
     def step(self, 
              self_robot : Robot, 
@@ -41,12 +43,10 @@ class AStarAgent(BaseAgent):
         if len(self.targets) == 0:
             return
         
-        a_star = AStarPlanner([point.x for point in opponents.values()], [point.y for point in opponents.values()], 0.1, self.robot_radius + 0.21 )
+        a_star = AStarPlanner([point.x for point in opponents.values()], [point.y for point in opponents.values()], 0.08, self.robot_radius + 0.1 )
         path_x, path_y = a_star.planning(self.robot.x, self.robot.y, self.targets[0].x, self.targets[0].y)
 
-
         self.planned_path = [Point(x, y) for x, y in zip(path_x, path_y)]
-        self.render_path = self.planned_path
 
         if self.planned_path and len(self.planned_path) > 0:
             
@@ -54,27 +54,23 @@ class AStarAgent(BaseAgent):
             self.planned_path = self.planned_path[::-1]
             
 
-            if len(self.planned_path) > 0:
-                # Use first waypoint for immediate navigation
-                i = 0 if len(self.planned_path) == 1 else 1 if len(self.planned_path) == 2 else 2
+            # Use first waypoint for immediate navigation
+            i = 0 if len(self.planned_path) == 1 else 1 if len(self.planned_path) == 2 else 2
 
-                next_point = Point(self.planned_path[i][0], self.planned_path[i][1])
+            next_point = Point(self.planned_path[i][0], self.planned_path[i][1])
+            
+            # if(a_star.open_set):
+            #     next_point = self.robot
+            #     a_star.open_set = False
 
-                # print(f"Next point: {next_point}, Target point: {self.targets[0]}, robot pos: {self.robot.x, self.robot.y}")
+            target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, next_point)
+            self.set_vel(target_velocity)
+            self.set_angle_vel(target_angle_velocity)
 
-
-                target_velocity, target_angle_velocity = Navigation.goToPoint(self.robot, next_point)
-                self.set_vel(target_velocity)
-                self.set_angle_vel(target_angle_velocity)
-
-        else:
-            # print("Invalid path!")
-            self.planned_path = []
-        return
 
     def post_decision(self):
         pass
 
-    def get_render_path(self):
+    def get_planned_path(self):
         """Return the current planned path for rendering"""
-        return self.render_path
+        return self.planned_path

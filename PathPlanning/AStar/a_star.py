@@ -36,6 +36,7 @@ class AStarPlanner:
         self.x_width, self.y_width = 0, 0
         self.motion = self.get_motion_model()
         self.calc_obstacle_map(ox, oy)
+        self.open_set = False
 
     class Node:
         def __init__(self, x, y, cost, parent_index):
@@ -74,6 +75,7 @@ class AStarPlanner:
         while True:
             if len(open_set) == 0:
                 print("Open set is empty..")
+                self.open_set = True
                 break
 
             c_id = min(
@@ -179,11 +181,13 @@ class AStarPlanner:
             return False
         elif py >= self.max_y:
             return False
-
-        # collision check
-        if self.obstacle_map[node.x][node.y]:
+        try:
+            # collision check
+            if self.obstacle_map[node.x][node.y]:
+                return False
+        except Exception as e:
             return False
-
+        
         return True
 
     def calc_obstacle_map(self, ox, oy):

@@ -45,7 +45,24 @@ class GridConverter:
                     if dist < robot_radius + self.cell_length/2:  # Add cell radius for conservative estimate
                         grid[i, j] = 1
                         break
-                        
+        """
+        Goal Grid Coordinates:
+        Right:
+            2-4, 14-15
+            2-4, 19-20    
+        Left:
+            30-32, 14, 15
+            30-32, 19-20
+        """
+
+        # Add left goal as obstacle
+        grid[2:5, 14:16] = 1
+        grid[2:5, 19:21] = 1
+
+    
+        grid[30:33, 14:16] = 1
+        grid[30:33, 19:21] = 1
+
         return grid
     
     def continuous_to_grid(self, x: float, y: float) -> Tuple[int, int]:
@@ -64,3 +81,15 @@ class GridConverter:
         x = -self.field_length/2 + grid_x * self.cell_length + self.cell_length/2
         y = -self.field_width/2 + grid_y * self.cell_width + self.cell_width/2
         return x, y
+    
+    def is_unoccupied(self, pos) -> bool:
+        """
+        :param pos: cell position we wish to check
+        :return: True if cell is occupied with obstacle, False else
+        """
+
+        row, col = self.continuous_to_grid(pos[0], pos[1])
+
+        return self.occupancy_grid_map[row][col] == 1
+    
+    

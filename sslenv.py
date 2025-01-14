@@ -6,7 +6,8 @@ from rsoccer_gym.Utils import KDTree
 from utils.Point import Point
 from utils.FixedQueue import FixedQueue
 from utils.ssl.small_field import SSLHRenderField
-from dstartAgent import DStarLiteAgent
+from dstarAgent import DStarLiteAgent
+from astarAgent import AStarAgent
 
 from random_agent import RandomAgent
 import random
@@ -51,6 +52,8 @@ class SSLExampleEnv(SSLBaseEnv):
         if field == 2:
             self.field_renderer = SSLHRenderField()
             self.window_size = self.field_renderer.window_size
+            
+
         
     def _frame_to_observations(self):
         ball, robot = self.frame.ball, self.frame.robots_blue[0]
@@ -267,6 +270,7 @@ class SSLExampleEnv(SSLBaseEnv):
             if hasattr(agent, 'get_planned_path'):
                 planned_path = agent.get_planned_path()
                 if planned_path and len(planned_path) > 0:
+                    # print()
                     # Convert path points to screen coordinates
                     path_points = [pos_transform(p.x, p.y) for p in planned_path]
                     
