@@ -18,11 +18,13 @@ class DStarLiteAgent(BaseAgent):
         self.grid = None
         self.dstar = None
         self.previous_obstacle_cells: Set[Tuple[int, int]] = set()
-        self.current_target = None
+        self.previous_target = None
         self.render_path = []
         self.velocity_obstacle = VelocityObstacle(robot_radius=self.robot_radius)
-        self.max_speed = 4.0  
-        
+        self.max_speed = 4.0
+        self.current_target = None
+        self.assigned_target = None
+
     def check_collisions(self, desired_velocity: Point) -> Point:
         """
         Check for potential collisions and adjust velocity if needed.
@@ -67,22 +69,30 @@ class DStarLiteAgent(BaseAgent):
              opponents: dict[int, Robot] = dict(), 
              teammates: dict[int, Robot] = dict(), 
              targets: list[Point] = [], 
+             pursued_targets: list[bool] = [],
              keep_targets=False,
              path=None) -> Robot:
         
         # Target (Point), hasPursuer (bool) -> Indicates if the robot is a pursuer of target i 
-        self.targets = [[target, False] for target in targets]
+        # self.targets = [[target, pursued] for target, pursued in zip(targets, pursued_targets)]
+        # target point (coordinates from goals) 
+        self.targets = targets.copy() 
+
+        # list of bools, True if the robot is a pursuer of target i
+        self.pursued_targets = pursued_targets.copy()
+
+
         self.robot = self_robot
         self.opponents = opponents.copy()
         self.teammates = teammates.copy()
 
-        self.decision(opponents)
+        pursued_target = self.decision(opponents)
         self.post_decision()
-
         
 
+    
         return Robot(id=self.id, yellow=self.yellow,
-                    v_x=self.next_vel.x, v_y=self.next_vel.y, v_theta=self.angle_vel)
+                    v_x=self.next_vel.x, v_y=self.next_vel.y, v_theta=self.angle_vel), pursued_target
 
     def detect_changes(self, old_grid: np.ndarray, new_grid: np.ndarray) -> List[Tuple[int, int]]:
         """
@@ -114,59 +124,94 @@ class DStarLiteAgent(BaseAgent):
             if is_pursuer:
                 return target
 
+    def set_current_target(self, target):
+        self.current_target = target
+
     def decision(self, opponents: dict[int, Robot] = dict()):
-        if len(self.targets) == 0:
-            return
-        
+        if not self.targets:
+            return self.pursued_targets
 
+        if self.current_target is None:
+            available_targets = []
+            available_target_indices = []
+            
+            for i, (target, is_pursued) in enumerate(zip(self.targets, self.pursued_targets)):
+                if not is_pursued:
+                    available_targets.append(target)
+                    available_target_indices.append(i)
+            
+            if available_targets:
+                # Calculate distances to all available targets
+                distances = [Navigation.distance_to_point(self.robot, target) 
+                           for target in available_targets]
+                
+                # Find the closest available target
+                closest_idx = np.argmin(distances)
+                target_idx = available_target_indices[closest_idx]
+                
+                # Assign this robot to the target
+                self.current_target = self.targets[target_idx]
+                self.pursued_targets[target_idx] = True
+            else:
+                # No available targets, stay in place
+                self.current_target = Point(self.robot.x, self.robot.y)
 
-        current_target = self.targets[0][0]
-        current_grid, start_grid, goal_grid = self.create_grids(current_target, opponents)
-        
-        changes = self.detect_changes(self.grid, current_grid)
-        
-        
-        if not self.dstar or self.hasTargetChanged(current_target):
-            self.dstar = DStarLite(grid=current_grid, start=start_grid, goal=goal_grid)
-            self.dstar.compute_shortest_path()
-        else:
-            # Update D* Lite incrementally
-            for cell in changes:
-                self.dstar.grid[cell] = current_grid[cell]
-                self.dstar.update_vertex(cell)
-            self.dstar.compute_shortest_path()
-        
-        path = self.dstar.reconstruct_path()
-
-        # Convert to continuous coordinates
-        continuous_path = [
-            self.grid_converter.grid_to_continuous(grid_x, grid_y)
-            for grid_x, grid_y in path
-        ]
-
-        # Move towards next point
-        next_point = Point(*continuous_path[1]) if len(continuous_path) > 1 else current_target
-        self.goTo(next_point)
-
-        self.dstar.start = self.grid_converter.continuous_to_grid(self.robot.x, self.robot.y)
+        if self.current_target and not Navigation.distance_to_point(self.robot, self.current_target) < 10e-3:
             
 
-        self.planned_path = continuous_path
-        self.render_path = [Point(x, y) for x, y in continuous_path]
+            current_grid, start_grid, goal_grid = self.create_grids(self.current_target, opponents)
+            changes = self.detect_changes(self.grid, current_grid)
 
+            if not self.dstar or self.hasTargetChanged(self.current_target):
+                print(f"target: {self.current_target} robot pos {self.robot.x, self.robot.y} {Navigation.distance_to_point(self.robot, self.current_target)}")
+                print("")
+                self.dstar = DStarLite(grid=current_grid, start=start_grid, goal=goal_grid, id=self.id)
+                self.dstar.compute_shortest_path()
+            else:
+                for cell in changes:
+                    self.dstar.grid[cell] = current_grid[cell]
+                    self.dstar.update_vertex(cell)
+                self.dstar.compute_shortest_path()
+            
+            path = self.dstar.reconstruct_path()
+            
+            # Convert to continuous coordinates
+            continuous_path = [
+                self.grid_converter.grid_to_continuous(grid_x, grid_y)
+                for grid_x, grid_y in path
+            ]
 
+            # Move towards next point
+            if len(continuous_path) > 1:
+                next_point = Point(*continuous_path[1])
+            else:
+                next_point = self.current_target
+            
+            self.goTo(next_point)
+            self.dstar.start = self.grid_converter.continuous_to_grid(self.robot.x, self.robot.y)
+            
+            self.planned_path = continuous_path
+            self.render_path = [Point(x, y) for x, y in continuous_path]
+            self.previous_target = self.current_target
+            self.grid = current_grid
 
-        self.current_target = current_target
-        self.grid = current_grid
+            if self.reachedWayPoint(self.current_target) and self.current_target != Point(self.robot.x, self.robot.y):
+            #    Reset target and paths
+                self.current_target = None  
+                self.planned_path = []
+                self.render_path = []
+
+        return self.pursued_targets
 
     def reachedWayPoint(self, point: Point):
         return Navigation.distance_to_point(self.robot, point) < 0.05
 
     def hasTargetChanged(self, current_target):
-        return  self.current_target is None \
-        or abs(current_target.x - self.current_target.x) > 1e-6 \
-        or abs(current_target.y - self.current_target.y) > 1e-6
+        return  self.previous_target is None \
+        or abs(current_target.x - self.previous_target.x) > 1e-6 \
+        or abs(current_target.y - self.previous_target.y) > 1e-6
         
+
     def create_grids(self, current_target, opponents):
         current_grid = self.grid_converter.create_grid(opponents, self.robot_radius + 0.1)
 
@@ -178,12 +223,6 @@ class DStarLiteAgent(BaseAgent):
         )
         return current_grid, start_grid, goal_grid
 
-    # def goTo(self, point: Point):
-    #         target_velocity, target_angle_velocity = Navigation.goToPoint(
-    #             self.robot, point
-    #         )
-    #         self.set_vel(target_velocity)
-    #         self.set_angle_vel(target_angle_velocity)
 
     def post_decision(self):
         pass

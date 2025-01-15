@@ -36,6 +36,8 @@ class SSLExampleEnv(SSLBaseEnv):
             high=self.field.length/2,shape=(n_obs, ))
         
         self.targets = []
+        self.pursued_targets = []
+
         self.min_dist = 0.18
         self.all_points = FixedQueue(max(4, self.max_targets))
         self.robots_paths = [FixedQueue(40) for i in range(11)]
@@ -70,8 +72,12 @@ class SSLExampleEnv(SSLBaseEnv):
 
         myActions = []
         for i in self.my_agents.keys():
-            action = self.my_agents[i].step(self.frame.robots_blue[i], remove_self(obstacles, i), teammates, self.targets)
+            action, pursued_targets = self.my_agents[i].step(self.frame.robots_blue[i], remove_self(obstacles, i), teammates, self.targets, pursued_targets=self.pursued_targets)
+            self.pursued_targets = pursued_targets
+
             myActions.append(action)
+
+        # print(f"Pursued: {self.pursued_targets}")
 
         others_actions = []
         if self.DYNAMIC_OBSTACLES:
@@ -106,6 +112,7 @@ class SSLExampleEnv(SSLBaseEnv):
             for i in self.my_agents:
                 if Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y).dist_to(self.targets[j]) < self.min_dist:
                     self.targets.pop(j)
+                    self.pursued_targets.pop(j)
                     break
         
         # Check if there are no more targets
@@ -126,6 +133,7 @@ class SSLExampleEnv(SSLBaseEnv):
         if len(self.targets) == 0:
             for i in range(self.targets_per_round):
                 self.targets.append(Point(self.x(), self.y()))
+                self.pursued_targets.append(False)
 
     def step(self, action):
         # Join agent action with environment actions
@@ -170,6 +178,7 @@ class SSLExampleEnv(SSLBaseEnv):
         pos_frame.robots_blue[0] = Robot(x=self.x(), y=self.y(), theta=theta())
 
         self.targets = [Point(x=self.x(), y=self.y())]
+        self.pursued_targets = [False]
 
         places = KDTree()
         places.insert((pos_frame.ball.x, pos_frame.ball.y))
