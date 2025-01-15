@@ -55,7 +55,7 @@ class GridConverter:
             30-32, 19-20
         """
 
-        # Add left goal as obstacle
+        # Add left and right goal as obstacle
         grid[2:5, 14:16] = 1
         grid[2:5, 19:21] = 1
 

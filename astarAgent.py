@@ -6,9 +6,8 @@ import numpy as np
 from typing import List
 from utils.Point import Point
 from rsoccer_gym.Entities import Robot
-from PathPlanning.RRT.rrt import RRT
-from PathPlanning.AStar.a_star import AStarPlanner
-from PathPlanning.DStarLite.d_star_lite import DStarLite
+from PathPlanning.a_star import AStarPlanner
+
 
 
 class AStarAgent(BaseAgent):

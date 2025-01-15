@@ -5,7 +5,7 @@ import numpy as np
 from typing import List, Set, Tuple
 from utils.Point import Point
 from rsoccer_gym.Entities import Robot
-from PathPlanning.DStarLite.d_star_lite import DStarLite
+from PathPlanning.d_star_lite import DStarLite
 
 
 class DStarLiteAgent(BaseAgent):

@@ -69,3 +69,7 @@ class Navigation:
       return target_velocity, -kp * d_theta
     else:
       return Point(0.0, 0.0), -kp * d_theta
+    
+  @staticmethod
+  def distance_to_point(robot: Robot, point: Point):
+    return math.sqrt((robot.x - point.x) ** 2 + (robot.y - point.y) ** 2)

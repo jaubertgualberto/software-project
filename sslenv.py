@@ -117,8 +117,10 @@ class SSLExampleEnv(SSLBaseEnv):
             self.rounds = self.max_rounds
             if self.targets_per_round < self.max_targets:
                 self.targets_per_round += 1
-                # self.blue_agents.pop(len(self.my_agents))
-                # self.my_agents[len(self.my_agents)] = ExampleAgent(len(self.my_agents), False)
+                self.blue_agents.pop(len(self.my_agents))
+                self.my_agents[len(self.my_agents)] = DStarLiteAgent(len(self.my_agents), False)
+
+        # print(f"Num Agents: ", len(self.my_agents))
 
         # Generate new targets
         if len(self.targets) == 0:
@@ -126,8 +128,6 @@ class SSLExampleEnv(SSLBaseEnv):
                 self.targets.append(Point(self.x(), self.y()))
 
     def step(self, action):
-        self.steps += 1
-        # print(f"Steps: {self.steps}")
         # Join agent action with environment actions
         commands: List[Robot] = self._get_commands(action)
         # Send command to simulator
