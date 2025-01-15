@@ -6,7 +6,7 @@ from typing import List, Set, Tuple
 from utils.Point import Point
 from rsoccer_gym.Entities import Robot
 from PathPlanning.d_star_lite import DStarLite
-
+from PathPlanning.velocity_obstacles import VelocityObstacle
 
 class DStarLiteAgent(BaseAgent):
     def __init__(self, id=0, yellow=False):
@@ -20,8 +20,47 @@ class DStarLiteAgent(BaseAgent):
         self.previous_obstacle_cells: Set[Tuple[int, int]] = set()
         self.current_target = None
         self.render_path = []
-        self.replan_threshold = 3
-        self.update_counter = 0  
+        self.velocity_obstacle = VelocityObstacle(robot_radius=self.robot_radius)
+        self.max_speed = 4.0  
+        
+    def check_collisions(self, desired_velocity: Point) -> Point:
+        """
+        Check for potential collisions and adjust velocity if needed.
+        """
+        own_pos = (self.robot.x, self.robot.y)
+        own_vel = (desired_velocity.x, desired_velocity.y)
+        
+        # Check collisions with all other robots
+        for opponent in self.opponents.values():
+            other_pos = (opponent.x, opponent.y)
+            other_vel = (opponent.v_x, opponent.v_y)
+            combined_radius = self.robot_radius * 2 + 0.4 # Assuming same radius for all robots
+            
+            # Check if collision is predicted
+            if self.velocity_obstacle.get_velocity_obstacle(
+                own_pos, own_vel, other_pos, other_vel, 
+                combined_radius, time_horizon=6.0
+            ):
+                # Get avoidance velocity
+                new_vel = self.velocity_obstacle.get_avoidance_velocity(
+                    own_vel, own_pos, other_pos, other_vel, 
+                    max_speed=self.max_speed
+                )
+                return Point(new_vel[0], new_vel[1])
+                
+        # No collision predicted, return original velocity
+        return desired_velocity
+
+    def goTo(self, point: Point):
+        target_velocity, target_angle_velocity = Navigation.goToPoint(
+            self.robot, point
+        )
+        
+        # Check for collisions and adjust velocity if needed
+        safe_velocity = self.check_collisions(target_velocity)
+        
+        self.set_vel(safe_velocity)
+        self.set_angle_vel(target_angle_velocity)   
         
     def step(self, 
              self_robot: Robot, 
@@ -31,7 +70,8 @@ class DStarLiteAgent(BaseAgent):
              keep_targets=False,
              path=None) -> Robot:
         
-        self.targets = targets.copy()
+        # Target (Point), hasPursuer (bool) -> Indicates if the robot is a pursuer of target i 
+        self.targets = [[target, False] for target in targets]
         self.robot = self_robot
         self.opponents = opponents.copy()
         self.teammates = teammates.copy()
@@ -68,54 +108,59 @@ class DStarLiteAgent(BaseAgent):
                     changes.append((x, y))
         return changes
 
+
+    def get_followed_target(self):
+        for target, is_pursuer in self.targets:
+            if is_pursuer:
+                return target
+
     def decision(self, opponents: dict[int, Robot] = dict()):
         if len(self.targets) == 0:
             return
+        
 
-        current_target = self.targets[0]
+
+        current_target = self.targets[0][0]
         current_grid, start_grid, goal_grid = self.create_grids(current_target, opponents)
-        target_changed = self.hasTargetChanged(current_target)
+        
+        changes = self.detect_changes(self.grid, current_grid)
+        
+        
+        if not self.dstar or self.hasTargetChanged(current_target):
+            self.dstar = DStarLite(grid=current_grid, start=start_grid, goal=goal_grid)
+            self.dstar.compute_shortest_path()
+        else:
+            # Update D* Lite incrementally
+            for cell in changes:
+                self.dstar.grid[cell] = current_grid[cell]
+                self.dstar.update_vertex(cell)
+            self.dstar.compute_shortest_path()
+        
+        path = self.dstar.reconstruct_path()
 
-        try:
-            # Only replan if target changed or every 5 updates
-            self.update_counter += 1
-            needs_replan = (self.dstar is None or 
-                          target_changed or 
-                          self.update_counter >= 5)
+        # Convert to continuous coordinates
+        continuous_path = [
+            self.grid_converter.grid_to_continuous(grid_x, grid_y)
+            for grid_x, grid_y in path
+        ]
 
-            if needs_replan:
-                self.update_counter = 0
-                self.dstar = DStarLite(grid=current_grid, start=start_grid, goal=goal_grid)
-                self.dstar.compute_shortest_path()
-                
-                # If goal is blocked, just wait /:
-                if not self.dstar.is_valid(goal_grid):
-                    self.goTo(self.robot)
+        # Move towards next point
+        next_point = Point(*continuous_path[1]) if len(continuous_path) > 1 else current_target
+        self.goTo(next_point)
 
-            path = self.dstar.reconstruct_path()
+        self.dstar.start = self.grid_converter.continuous_to_grid(self.robot.x, self.robot.y)
             
-            # Convert to continuous coordinates
-            continuous_path = [
-                self.grid_converter.grid_to_continuous(grid_x, grid_y)
-                for grid_x, grid_y in path
-            ]
 
-            self.planned_path = continuous_path
-            self.render_path = [Point(x, y) for x, y in continuous_path]
-            
-            # Move towards next point
-            if len(continuous_path) > 1:
-                next_point = Point(continuous_path[1][0], continuous_path[1][1])
-            else:
-                next_point = current_target
+        self.planned_path = continuous_path
+        self.render_path = [Point(x, y) for x, y in continuous_path]
 
-            self.goTo(next_point)
 
-        except ValueError:
-            self.goTo(self.robot)
 
         self.current_target = current_target
         self.grid = current_grid
+
+    def reachedWayPoint(self, point: Point):
+        return Navigation.distance_to_point(self.robot, point) < 0.05
 
     def hasTargetChanged(self, current_target):
         return  self.current_target is None \
@@ -133,12 +178,12 @@ class DStarLiteAgent(BaseAgent):
         )
         return current_grid, start_grid, goal_grid
 
-    def goTo(self, point: Point):
-            target_velocity, target_angle_velocity = Navigation.goToPoint(
-                self.robot, point
-            )
-            self.set_vel(target_velocity)
-            self.set_angle_vel(target_angle_velocity)
+    # def goTo(self, point: Point):
+    #         target_velocity, target_angle_velocity = Navigation.goToPoint(
+    #             self.robot, point
+    #         )
+    #         self.set_vel(target_velocity)
+    #         self.set_angle_vel(target_angle_velocity)
 
     def post_decision(self):
         pass
