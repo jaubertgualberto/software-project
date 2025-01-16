@@ -35,60 +35,84 @@ class DStarLiteAgent(BaseAgent):
         self.previous_obstacle_cells: Set[Tuple[int, int]] = set()
         self.previous_target = None
         self.render_path = []
-        self.velocity_obstacle = VelocityObstacle(robot_radius=self.robot_radius)
-        self.max_speed = 4.0
+
+        self.max_speed = 4.0    
+        self.min_speed = 0.4
+        self.velocity_obstacle = VelocityObstacle(
+            robot_radius=self.robot_radius,
+            max_speed=self.max_speed,
+            min_speed=self.min_speed
+        )
+
         self.assigned_target = None
         self.has_target = False
         self.current_target = None
         self.color = colors[id]
         self.standing_point = None
+        self.min_speed = 0.1
+        self.safety_radius = 0.4 
 
-    def check_collisions(self, desired_velocity: Point) -> Point:
-        """
-        Check for potential collisions and adjust velocity if needed.
-        """
-        own_pos = (self.robot.x, self.robot.y)
-        own_vel = (desired_velocity.x, desired_velocity.y)
+
+    def get_evasive_velocity(self) -> Point:
+        """Calculate evasive velocity when robots get too close while standing."""
+        evasive_x, evasive_y = 0.0, 0.0
         
-        # Check collisions with all other robots
         for opponent in self.opponents.values():
-            other_pos = (opponent.x, opponent.y)
-            other_vel = (opponent.v_x, opponent.v_y)
-            combined_radius = self.robot_radius * 2 + 0.4 
+            # Calculate distance and direction to opponent
+            dx = self.robot.x - opponent.x
+            dy = self.robot.y - opponent.y
+            distance = np.sqrt(dx*dx + dy*dy)
             
-            # Check if collision is predicted
-            if self.velocity_obstacle.get_velocity_obstacle(
-                own_pos, own_vel, other_pos, other_vel, 
-                combined_radius, time_horizon=6.0
-            ):
-                # Get avoidance velocity
-                new_vel = self.velocity_obstacle.get_avoidance_velocity(
-                    own_vel, own_pos, other_pos, other_vel, 
-                    max_speed=self.max_speed
-                )
-                return Point(new_vel[0], new_vel[1])
+            if distance < self.safety_radius:
+                # Calculate repulsive force inversely proportional to distance
+                force = (self.safety_radius - distance) / self.safety_radius
+                # Normalize direction
+                if distance > 0:
+                    dx /= distance
+                    dy /= distance
+                else:  # If exactly at same position, move in random direction
+                    angle = np.random.random() * 2 * np.pi
+                    dx = np.cos(angle)
+                    dy = np.sin(angle)
                 
-        # No collision predicted, return original velocity
-        return desired_velocity
+                # Add to total evasive velocity
+                evasive_x += dx * force * self.max_speed * 0.5
+                evasive_y += dy * force * self.max_speed * 0.5
+        
+        # If no evasion needed, return zero velocity
+        if evasive_x == 0 and evasive_y == 0:
+            return Point(0.0, 0.0)
+            
+        # Normalize and scale evasive velocity
+        magnitude = np.sqrt(evasive_x*evasive_x + evasive_y*evasive_y)
+        if magnitude > self.max_speed:
+            evasive_x = (evasive_x / magnitude) * self.max_speed
+            evasive_y = (evasive_y / magnitude) * self.max_speed
+            
+        return Point(evasive_x, evasive_y)
 
     def goTo(self, point: Point):
         target_velocity, target_angle_velocity = Navigation.goToPoint(
             self.robot, point
         )
         
-        # Check for collisions and adjust velocity if needed
-        safe_velocity = self.check_collisions(target_velocity)
-        
-        self.set_vel(safe_velocity)
-        self.set_angle_vel(target_angle_velocity)   
+        # If we're close to our target point, check for evasive action
+        if Navigation.distance_to_point(self.robot, point) < 0.1:
+            evasive_vel = self.get_evasive_velocity()
+            if evasive_vel.x != 0 or evasive_vel.y != 0:
+                self.set_vel(evasive_vel)
+                return
+                
+        self.set_vel(target_velocity)
+        self.set_angle_vel(target_angle_velocity)
 
     def wait(self):
-        
         if self.standing_point is None:
-            self.set_vel(Point(0.0, 0.0))
+            # Get evasive action if needed while standing still
+            safe_vel = self.get_evasive_velocity()
+            self.set_vel(safe_vel)
             self.set_angle_vel(0.0)
         else:
-            print(f"Waiting at {self.standing_point}")
             self.goTo(self.standing_point)
 
     def update(self,  

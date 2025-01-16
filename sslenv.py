@@ -145,25 +145,25 @@ class SSLExampleEnv(SSLBaseEnv):
         if len(self.targets) == 0:
             self.rounds -= 1
 
-        # # Finish the phase and increase the number of targets for the next phase
-        # if self.rounds == 0:
-        #     self.rounds = self.max_rounds
-        #     if self.targets_per_round < self.max_targets:
-        #         self.targets_per_round += 1
-        #         self.blue_agents.pop(len(self.my_agents))
+        # Finish the phase and increase the number of targets for the next phase
+        if self.rounds == 0:
+            self.rounds = self.max_rounds
+            if self.targets_per_round < self.max_targets:
+                self.targets_per_round += 1
+                self.blue_agents.pop(len(self.my_agents))
 
-        #         len_agents = len(self.my_agents)
-        #         agent = DStarLiteAgent(len_agents, False)
-        #         self.my_agents[len_agents] = agent
+                len_agents = len(self.my_agents)
+                agent = DStarLiteAgent(len_agents, False)
+                self.my_agents[len_agents] = agent
 
 
 
         # Generate new targets
-        # if len(self.targets) == 0:
-        #     for i in range(self.targets_per_round):
-        #         new_target = Point(self.x(), self.y())
-        #         self.targets.append(new_target)
-        #         self.central_planner.add_target(new_target)
+        if len(self.targets) == 0:
+            for i in range(self.targets_per_round):
+                new_target = Point(self.x(), self.y())
+                self.targets.append(new_target)
+                self.central_planner.add_target(new_target)
                 
 
     def step(self, action):
