@@ -18,6 +18,23 @@ from rsoccer_gym.Render import COLORS, SSLRenderField, SSLRobot
 from rsoccer_gym.Render import Ball as BallRender
 from rsoccer_gym.Simulators.rsim import RSimSSL
 
+from centralPlanner import CentralPlanner
+
+
+colors = {    
+    0  : (151, 21, 0),
+    1  : (220, 220, 220),
+    2  : (20, 90, 45),
+    3  : (0, 128, 0),
+    4  : (253, 106, 2),
+    5  : (0, 64, 255),
+    6  : (255, 223, 0),
+    7  : (128, 128, 0),
+    8  : (102, 51, 153),
+    9  : (220, 0, 220),
+    10 : (250,165,112)
+    }
+
 class SSLExampleEnv(SSLBaseEnv):
     def __init__(self, render_mode="human", difficulty=Difficulty.EASY):
         field = 2   # 1: SSL Div B    2: SSL Software challenge
@@ -46,10 +63,14 @@ class SSLExampleEnv(SSLBaseEnv):
         self.targets_per_round = 1
 
         self.my_agents = {0: DStarLiteAgent(0, False)}
+        self.my_agents[0].color = colors[0]
+        
         self.blue_agents = {i: RandomAgent(i, False) for i in range(1, 11)}
         self.yellow_agents = {i: RandomAgent(i, True) for i in range(0, 11)}
 
         self.gen_target_prob = 0.003
+
+        self.central_planner = CentralPlanner(self.my_agents)
 
         if field == 2:
             self.field_renderer = SSLHRenderField()
@@ -70,14 +91,17 @@ class SSLExampleEnv(SSLBaseEnv):
 
         remove_self = lambda robots, selfId: {id: robot for id, robot in robots.items() if id != selfId}
 
-        myActions = []
-        for i in self.my_agents.keys():
-            action, pursued_targets = self.my_agents[i].step(self.frame.robots_blue[i], remove_self(obstacles, i), teammates, self.targets, pursued_targets=self.pursued_targets)
-            self.pursued_targets = pursued_targets
+        # myActions = []
+        # for i in self.my_agents.keys():
+        #     action, pursued_targets = self.my_agents[i].step(self.frame.robots_blue[i], remove_self(obstacles, i), teammates, self.targets, pursued_targets=self.pursued_targets)
+        #     self.pursued_targets = pursued_targets
 
-            myActions.append(action)
+        #     myActions.append(action)
 
-        # print(f"Pursued: {self.pursued_targets}")
+
+        # print("Sent targets: ", self.targets)
+        myActions = self.central_planner.step(self.frame.robots_blue, teammates, self.targets, obstacles=obstacles)
+
 
         others_actions = []
         if self.DYNAMIC_OBSTACLES:
@@ -94,6 +118,8 @@ class SSLExampleEnv(SSLBaseEnv):
                     random_target.append(Point(x=self.x(), y=self.y()))
 
                 others_actions.append(self.yellow_agents[i].step(self.frame.robots_yellow[i], obstacles, dict(), random_target, True))
+
+
 
         return myActions + others_actions
 
@@ -112,7 +138,11 @@ class SSLExampleEnv(SSLBaseEnv):
             for i in self.my_agents:
                 if Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y).dist_to(self.targets[j]) < self.min_dist:
                     self.targets.pop(j)
-                    self.pursued_targets.pop(j)
+                    # self.pursued_targets.pop(j)
+                    
+                    # Agent i has reached target j
+                    # self.my_agents[i].has_target = False
+                    self.central_planner.agent_reached_target(self.my_agents[i])
                     break
         
         # Check if there are no more targets
@@ -125,15 +155,22 @@ class SSLExampleEnv(SSLBaseEnv):
             if self.targets_per_round < self.max_targets:
                 self.targets_per_round += 1
                 self.blue_agents.pop(len(self.my_agents))
+
                 self.my_agents[len(self.my_agents)] = DStarLiteAgent(len(self.my_agents), False)
+                self.my_agents[len(self.my_agents)-1].color = colors[len(self.my_agents)-1]
+
+                # print("Teste", self.my_agents[len(self.my_agents) - 1])
+                self.central_planner.add_agent(self.my_agents[len(self.my_agents)-1])
 
         # print(f"Num Agents: ", len(self.my_agents))
 
         # Generate new targets
         if len(self.targets) == 0:
             for i in range(self.targets_per_round):
-                self.targets.append(Point(self.x(), self.y()))
-                self.pursued_targets.append(False)
+                new_target = Point(self.x(), self.y())
+                self.targets.append(new_target)
+                self.central_planner.add_target(new_target)
+                
 
     def step(self, action):
         # Join agent action with environment actions
@@ -178,7 +215,12 @@ class SSLExampleEnv(SSLBaseEnv):
         pos_frame.robots_blue[0] = Robot(x=self.x(), y=self.y(), theta=theta())
 
         self.targets = [Point(x=self.x(), y=self.y())]
-        self.pursued_targets = [False]
+        # self.pursued_targets = [False]
+
+        # self.central_planner.targets = self.targets
+        # self.central_planner.pursued_targets = self.pursued_targets
+
+        self.central_planner.add_target(self.targets[0])
 
         places = KDTree()
         places.insert((pos_frame.ball.x, pos_frame.ball.y))
@@ -201,8 +243,23 @@ class SSLExampleEnv(SSLBaseEnv):
             pos_frame.robots_yellow[i] = Robot(x=pos[0], y=pos[1], theta=theta())
 
         return pos_frame
-    
+
+    """
+    "
+    "RED": (151, 21, 0),
+    WHITE": (220, 220, 220),
+    "BG_GREEN": (20, 90, 45),
+    "GREEN": (0, 128, 0),
+    "ORANGE": (255, 106, 2),
+    "BLUE": (0, 64, 255),
+    "YELLOW": (250, 218, 94),
+    "OLIVE": (128, 128, 0),
+    "PURPLE": (102, 51, 153),
+    "HAZEL": 	(250,165,112),
+    """
+
     def _render_modified(self):
+
 
         def pos_transform(pos_x, pos_y):
             return (
@@ -225,8 +282,9 @@ class SSLExampleEnv(SSLBaseEnv):
                 robot.theta,
                 self.field_renderer.scale,
                 robot.id,
-                COLORS["RED"] if i == 0 else COLORS["BLUE"]
+                colors[i] if i < len(self.my_agents) else COLORS["BLUE"]
             )
+            
             rbt.draw(self.window_surface)
 
         for i in range(self.n_robots_yellow):
@@ -298,6 +356,7 @@ class SSLExampleEnv(SSLBaseEnv):
                         # End point in red
                         pygame.draw.circle(self.window_surface, (255, 0, 0), path_points[-1], 6, 2)
             
+
 
     def draw_target(self, screen, transformer, point, color):
         x, y = transformer(point.x, point.y)

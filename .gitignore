@@ -4,3 +4,4 @@ __pycache__/
 /venv
 PathPlanning/
 d-star-lite/
+/cbs_mapf
