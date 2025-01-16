@@ -63,7 +63,6 @@ class SSLExampleEnv(SSLBaseEnv):
         self.targets_per_round = 1
 
         self.my_agents = {0: DStarLiteAgent(0, False)}
-        self.my_agents[0].color = colors[0]
         
         self.blue_agents = {i: RandomAgent(i, False) for i in range(1, 11)}
         self.yellow_agents = {i: RandomAgent(i, True) for i in range(0, 11)}
@@ -100,7 +99,7 @@ class SSLExampleEnv(SSLBaseEnv):
 
 
         # print("Sent targets: ", self.targets)
-        myActions = self.central_planner.step(self.frame.robots_blue, teammates, self.targets, obstacles=obstacles)
+        myActions = self.central_planner.step(self.frame.robots_blue, teammates, obstacles=obstacles)
 
 
         others_actions = []
@@ -137,39 +136,34 @@ class SSLExampleEnv(SSLBaseEnv):
         for j in range(len(self.targets) - 1, -1, -1):
             for i in self.my_agents:
                 if Point(self.frame.robots_blue[i].x, self.frame.robots_blue[i].y).dist_to(self.targets[j]) < self.min_dist:
-                    self.targets.pop(j)
-                    # self.pursued_targets.pop(j)
+                    self.central_planner.agent_reached_target(self.targets[j])
                     
-                    # Agent i has reached target j
-                    # self.my_agents[i].has_target = False
-                    self.central_planner.agent_reached_target(self.my_agents[i])
+                    self.targets.pop(j)
                     break
         
         # Check if there are no more targets
         if len(self.targets) == 0:
             self.rounds -= 1
 
-        # Finish the phase and increase the number of targets for the next phase
-        if self.rounds == 0:
-            self.rounds = self.max_rounds
-            if self.targets_per_round < self.max_targets:
-                self.targets_per_round += 1
-                self.blue_agents.pop(len(self.my_agents))
+        # # Finish the phase and increase the number of targets for the next phase
+        # if self.rounds == 0:
+        #     self.rounds = self.max_rounds
+        #     if self.targets_per_round < self.max_targets:
+        #         self.targets_per_round += 1
+        #         self.blue_agents.pop(len(self.my_agents))
 
-                self.my_agents[len(self.my_agents)] = DStarLiteAgent(len(self.my_agents), False)
-                self.my_agents[len(self.my_agents)-1].color = colors[len(self.my_agents)-1]
+        #         len_agents = len(self.my_agents)
+        #         agent = DStarLiteAgent(len_agents, False)
+        #         self.my_agents[len_agents] = agent
 
-                # print("Teste", self.my_agents[len(self.my_agents) - 1])
-                self.central_planner.add_agent(self.my_agents[len(self.my_agents)-1])
 
-        # print(f"Num Agents: ", len(self.my_agents))
 
         # Generate new targets
-        if len(self.targets) == 0:
-            for i in range(self.targets_per_round):
-                new_target = Point(self.x(), self.y())
-                self.targets.append(new_target)
-                self.central_planner.add_target(new_target)
+        # if len(self.targets) == 0:
+        #     for i in range(self.targets_per_round):
+        #         new_target = Point(self.x(), self.y())
+        #         self.targets.append(new_target)
+        #         self.central_planner.add_target(new_target)
                 
 
     def step(self, action):
@@ -220,7 +214,8 @@ class SSLExampleEnv(SSLBaseEnv):
         # self.central_planner.targets = self.targets
         # self.central_planner.pursued_targets = self.pursued_targets
 
-        self.central_planner.add_target(self.targets[0])
+        target = self.targets[0]
+        self.central_planner.add_target(target)
 
         places = KDTree()
         places.insert((pos_frame.ball.x, pos_frame.ball.y))

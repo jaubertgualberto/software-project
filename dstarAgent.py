@@ -40,7 +40,8 @@ class DStarLiteAgent(BaseAgent):
         self.assigned_target = None
         self.has_target = False
         self.current_target = None
-        self.color = None
+        self.color = colors[id]
+        self.standing_point = None
 
     def check_collisions(self, desired_velocity: Point) -> Point:
         """
@@ -53,7 +54,7 @@ class DStarLiteAgent(BaseAgent):
         for opponent in self.opponents.values():
             other_pos = (opponent.x, opponent.y)
             other_vel = (opponent.v_x, opponent.v_y)
-            combined_radius = self.robot_radius * 2 + 0.4 # Assuming same radius for all robots
+            combined_radius = self.robot_radius * 2 + 0.4 
             
             # Check if collision is predicted
             if self.velocity_obstacle.get_velocity_obstacle(
@@ -82,8 +83,13 @@ class DStarLiteAgent(BaseAgent):
         self.set_angle_vel(target_angle_velocity)   
 
     def wait(self):
-        self.set_vel(Point(0.0, 0.0))
-        self.set_angle_vel(0.0)
+        
+        if self.standing_point is None:
+            self.set_vel(Point(0.0, 0.0))
+            self.set_angle_vel(0.0)
+        else:
+            print(f"Waiting at {self.standing_point}")
+            self.goTo(self.standing_point)
 
     def update(self,  
              self_robot: Robot, 
@@ -94,32 +100,15 @@ class DStarLiteAgent(BaseAgent):
         self.opponents = opponents.copy()
         self.teammates = teammates.copy()   
 
-    def step(self, 
-             targets: list[Point] = [], 
-             pursued_targets: list[bool] = [],
-             current_target: Point = None) -> Robot:
-        
-        # Target (Point), hasPursuer (bool) -> Indicates if the robot is a pursuer of target i 
-        # self.targets = [[target, pursued] for target, pursued in zip(targets, pursued_targets)]
-        # target point (coordinates from goals) 
-        # self.targets = targets.copy() 
+    def step(self, current_target: Point = None) -> Robot:
 
-
-        # print("current_target- 1", current_target, self.has_target)
         self.current_target = current_target
-        # list of bools, True if the robot is a pursuer of target i
-        # self.pursued_targets = pursued_targets.copy()
-
-        
-
-
-        # print("current_target - 2", current_target, self.has_target)
         self.decision( current_target)
         self.post_decision()
         
-    
         return Robot(id=self.id, yellow=self.yellow,
                     v_x=self.next_vel.x, v_y=self.next_vel.y, v_theta=self.angle_vel)
+
 
     def detect_changes(self, old_grid: np.ndarray, new_grid: np.ndarray) -> List[Tuple[int, int]]:
         """
@@ -145,11 +134,12 @@ class DStarLiteAgent(BaseAgent):
                     changes.append((x, y))
         return changes
 
-
+    def set_standing_point(self, point: Point):
+        self.standing_point = point
 
     def decision(self, current_target = None):
         if not current_target:
-            # print("teste ", current_target)
+            self.wait()
             return 
 
 
@@ -161,10 +151,6 @@ class DStarLiteAgent(BaseAgent):
 
             if not self.dstar or self.hasTargetChanged(current_target):
                 # print(f"target: {current_target} robot pos {self.robot.x, self.robot.y} {Navigation.distance_to_point(self.robot, current_target)}")
-                # print("")
-                # print("")
-                # print(f"{colors[self.id]} - {self.id} - {current_target}")
-                # print("")
                 self.dstar = DStarLite(grid=current_grid, start=start_grid, goal=goal_grid, id=self.id)
                 self.dstar.compute_shortest_path()
             else:
@@ -202,9 +188,6 @@ class DStarLiteAgent(BaseAgent):
                 self.render_path = []
 
         else:
-            # print("")
-            # print(f"{colors[self.id]} - {self.id} - waiting")
-            # print("")
             self.wait()
 
     def reachedWayPoint(self, point: Point):
