@@ -1,19 +1,15 @@
 from utils.ssl.Navigation import Navigation
 from utils.ssl.base_agent import BaseAgent
 from PathPlanning.utils.grid_converter import GridConverter
-import numpy as np
-from typing import List, Set, Tuple
 from utils.Point import Point
 
 from PathPlanning.utils.robot_movement import get_evasive_velocity
 
 from rsoccer_gym.Entities import Robot
 from PathPlanning.d_star_lite import DStarLite
+from PathPlanning.utils.handle_target import TargetHelper
 
-from PathPlanning.utils.handle_target import visualize_grid, get_next_waypoint, hasTargetChanged, reachedWayPoint
-
-from PathPlanning.utils.grid_helper import create_grids, detect_changes, detect_changes_allong_path
-
+from PathPlanning.velocity_obstacles import RVO_update
 
 colors = [  
     "RED",
@@ -34,6 +30,8 @@ class DStarLiteAgent(BaseAgent):
         self.robot_radius = 0.06
         self.grid_size = 27
         self.grid_converter = GridConverter(field_length=6.0, field_width=4.0, grid_size=self.grid_size)
+        self.target_helper = TargetHelper(grid_converter=self.grid_converter)
+
         self.grid = None
         self.dstar = None
         self.previous_target = None
@@ -53,8 +51,17 @@ class DStarLiteAgent(BaseAgent):
 
         self.wayPoint = 0
 
-        # Precompute neighbors for each cell (avoid recalculating every step)
-        self.neighbors = self.compute_neighbors()
+
+        # Initialize the VelocityObstacle instance
+        # self.velocity_obstacle = VelocityObstacle(
+        #     robot_radius=self.robot_radius,
+        #     max_speed=self.max_speed,
+        #     min_speed=self.min_speed
+        # )
+
+    
+    # def compute_velocity(self, robot: Robot, target: Point, targetVel):
+    #     RVO_update
 
 
     def update(self,  
@@ -81,35 +88,30 @@ class DStarLiteAgent(BaseAgent):
 
         if current_target and self.has_target:
             self.decision( current_target)
+            self.post_decision()
+
         else:
             self.wait()
             
-        self.post_decision()
         
         return Robot(id=self.id, yellow=self.yellow,
                     v_x=self.next_vel.x, v_y=self.next_vel.y, v_theta=self.angle_vel)
 
 
     def decision(self, current_target = None):
-        if not current_target:
-            self.wait()
-            return 
-
         
         # Create Grid, get start and goal cells
-        current_grid, start_cell, goal_cell = create_grids(current_target, self.opponents, self.grid_converter, self.robot_radius, self.robot)
-        impoartant_changes = len(detect_changes(self.grid, current_grid, start_cell, self.neighbors)) > 0
+        current_grid, start_cell, goal_cell = self.grid_converter.create_grids(current_target, self.opponents,  self.robot_radius, self.robot)
+        changes = len(self.grid_converter.detect_changes(self.grid, current_grid, start_cell)) > 0
   
 
         if self.dstar:
-            # changes = self.detect_changes(self.dstar.grid, current_grid)
-            changes = detect_changes_allong_path(self.dstar.grid, current_grid, self.path, self.neighbors)
+            changes = self.grid_converter.detect_changes_allong_path(self.dstar.grid, current_grid, self.path)
         else:
             changes = []
 
 
-
-        if not self.dstar or hasTargetChanged(current_target, self.previous_target):
+        if not self.dstar or self.target_helper.hasTargetChanged(current_target, self.previous_target):
             self.dstar = DStarLite(grid=current_grid, start=start_cell, goal=goal_cell, id=self.id)
             self.dstar.compute_shortest_path()
             self.path = self.dstar.reconstruct_path()
@@ -117,19 +119,13 @@ class DStarLiteAgent(BaseAgent):
 
             self.last_start = self.dstar.start
 
-            # self.visualize_grid(self.dstar.grid, self.dstar.start, self.dstar.goal, self.path)
-            # self.visualize_grid(current_grid, start_cell, goal_cell, self.path)
-
-
-        
-        
         # If any edge cost has changed
-        elif (impoartant_changes) or goal_cell not in self.path:
+        elif (changes) or goal_cell not in self.path:
             # Update D* Lite K_m value
 
             print("Updating Path")
 
-            # self.dstar.Km +=  self.dstar.heuristic(self.dstar.start, self.last_start)
+            self.dstar.Km +=  self.dstar.heuristic(self.dstar.start, self.last_start)
 
             self.dstar.update_grid(changes, current_grid)
 
@@ -137,9 +133,6 @@ class DStarLiteAgent(BaseAgent):
             self.path = self.dstar.reconstruct_path()
 
             self.last_start = self.dstar.start
-
-            # self.visualize_grid(self.dstar.grid, self.dstar.start, self.dstar.goal, self.path)
-            # self.visualize_grid(current_grid, start_cell, goal_cell, self.path)
 
             
         # Convert to continuous coordinates
@@ -149,12 +142,12 @@ class DStarLiteAgent(BaseAgent):
         ]
 
         # Move towards next point
-        next_point = get_next_waypoint(self.path, self.wayPoint, self.grid_converter)
+        next_point = self.target_helper.get_next_waypoint(self.path, self.wayPoint, self.grid_converter)
         if next_point:
             self.goTo(next_point)
 
             # Update waypoint if reached
-            if reachedWayPoint(next_point, self.robot):
+            if self.target_helper.reachedWayPoint(next_point, self.robot):
                 self.path.pop(0)
                 
         
@@ -166,6 +159,12 @@ class DStarLiteAgent(BaseAgent):
 
 
     def post_decision(self):
+        # # Adjust velocity to avoid dynamic obstacles
+        # adjusted_velocity = self.velocity_obstacle.avoid_collision(
+        #     self.next_vel, self.robot, self.opponents
+        # )
+        # if adjusted_velocity is not None:
+        #     self.set_vel(adjusted_velocity)
         pass
 
 
@@ -202,22 +201,12 @@ class DStarLiteAgent(BaseAgent):
             self.set_angle_vel(0.0)
         else:
             self.goTo(self.standing_point)
-
-
+   
+   
     def set_standing_point(self, point: Point):
         self.standing_point = point
 
 
-    def compute_neighbors(self):
-        neighbors = {
-            (x, y): [
-                (x + dx, y + dy)
-                for dx in range(-2, 2) for dy in range(-2, 2)
-                if (dx != 0 or dy != 0) and 0 <= x + dx < self.grid_size and 0 <= y + dy < self.grid_size
-            ]
-            for x in range(self.grid_size) for y in range(self.grid_size)
-        }
-        return neighbors
 
     def get_planned_path(self):
         """Return the current planned path for rendering"""
