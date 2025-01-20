@@ -1,7 +1,7 @@
 
 from utils.ssl.Navigation import Navigation
 from utils.ssl.base_agent import BaseAgent
-from utils.grid_converter import GridConverter
+from PathPlanning.utils.grid_converter import GridConverter
 import numpy as np
 from typing import List
 from utils.Point import Point
