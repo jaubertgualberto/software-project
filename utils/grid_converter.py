@@ -2,9 +2,9 @@ from typing import List, Tuple
 import numpy as np
 
 class GridConverter:
-    def __init__(self, field_length: float, field_width: float, grid_size: int = 35):
+    def __init__(self, field_length: float, field_width: float, grid_size: int = 24):
         """
-        Initialize grid converter for SSL environment
+        Initialize grid converter
         
         Args:
             field_length: Length of the field in meters
@@ -45,23 +45,7 @@ class GridConverter:
                     if dist < robot_radius + self.cell_length/2:  # Add cell radius for conservative estimate
                         grid[i, j] = 1
                         break
-        """
-        Goal Grid Coordinates:
-        Right:
-            2-4, 14-15
-            2-4, 19-20    
-        Left:
-            30-32, 14, 15
-            30-32, 19-20
-        """
 
-        # Add left and right goal as obstacle
-        grid[2:5, 14:16] = 1
-        grid[2:5, 19:21] = 1
-
-    
-        grid[30:33, 14:16] = 1
-        grid[30:33, 19:21] = 1
 
         return grid
     

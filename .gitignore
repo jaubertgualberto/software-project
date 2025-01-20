@@ -3,5 +3,6 @@ __pycache__/
 *$py.class
 /venv
 PathPlanning/
+PathPlanning copy/
 d-star-lite/
 /cbs_mapf
