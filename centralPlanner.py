@@ -15,6 +15,7 @@ To do:
     "Implement error handling in step method",
     "Create monitoring for completed targets"
 
+    "Create shared grid"
     "Handle case when one agent reach another agent target" ok
 
 """
@@ -41,10 +42,12 @@ class CentralPlanner:
                 return agent
 
     def agent_reached_target(self, target: Point):
-            
+        try:
             agent_target = self.get_agent_from_target(target)
             agent_target.has_target = False
             self.targets.remove((target, True))
+        except:
+            print("Error: Agent not found")
 
 
     def num_targets_left(self):

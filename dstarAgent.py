@@ -28,7 +28,7 @@ class DStarLiteAgent(BaseAgent):
     def __init__(self, id=0, yellow=False):
         super().__init__(id, yellow)
         self.robot_radius = 0.06
-        self.grid_size = 27
+        self.grid_size = 20
         self.grid_converter = GridConverter(field_length=6.0, field_width=4.0, grid_size=self.grid_size)
         self.target_helper = TargetHelper(grid_converter=self.grid_converter)
 
@@ -102,9 +102,10 @@ class DStarLiteAgent(BaseAgent):
         
         # Create Grid, get start and goal cells
         current_grid, start_cell, goal_cell = self.grid_converter.create_grids(current_target, self.opponents,  self.robot_radius, self.robot)
-        changes = len(self.grid_converter.detect_changes(self.grid, current_grid, start_cell)) > 0
-  
 
+
+        global_changes = self.grid_converter.detect_changes(self.grid, current_grid)
+        
         if self.dstar:
             changes = self.grid_converter.detect_changes_allong_path(self.dstar.grid, current_grid, self.path)
         else:
@@ -127,7 +128,7 @@ class DStarLiteAgent(BaseAgent):
 
             self.dstar.Km +=  self.dstar.heuristic(self.dstar.start, self.last_start)
 
-            self.dstar.update_grid(changes, current_grid)
+            self.dstar.update_grid(global_changes, current_grid)
 
             self.dstar.compute_shortest_path()
             self.path = self.dstar.reconstruct_path()
@@ -156,6 +157,8 @@ class DStarLiteAgent(BaseAgent):
         self.render_path = [Point(x, y) for x, y in continuous_path]
         self.previous_target = current_target
         self.grid = current_grid
+
+        # self.grid_converter.visualize_grid(self.grid, self.dstar.start, goal_cell, self.path)
 
 
     def post_decision(self):
