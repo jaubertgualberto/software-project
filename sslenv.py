@@ -6,7 +6,7 @@ from rsoccer_gym.Utils import KDTree
 from utils.Point import Point
 from utils.FixedQueue import FixedQueue
 from utils.ssl.small_field import SSLHRenderField
-from dstarAgent import DStarLiteAgent
+from dStarAgent import DStarLiteAgent
 from astarAgent import AStarAgent
 
 from random_agent import RandomAgent
@@ -88,14 +88,8 @@ class SSLExampleEnv(SSLBaseEnv):
             obstacles[i + self.n_robots_blue] = self.frame.robots_yellow[i]
         teammates = {id: self.frame.robots_blue[id] for id in self.my_agents.keys()}
 
+
         remove_self = lambda robots, selfId: {id: robot for id, robot in robots.items() if id != selfId}
-
-        # myActions = []
-        # for i in self.my_agents.keys():
-        #     action, pursued_targets = self.my_agents[i].step(self.frame.robots_blue[i], remove_self(obstacles, i), teammates, self.targets, pursued_targets=self.pursued_targets)
-        #     self.pursued_targets = pursued_targets
-
-        #     myActions.append(action)
 
 
         # print("Sent targets: ", self.targets)

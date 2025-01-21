@@ -33,6 +33,7 @@ class DStarLiteAgent(BaseAgent):
         self.target_helper = TargetHelper(grid_converter=self.grid_converter)
 
         self.grid = None
+        self.last_grid = None
         self.dstar = None
         self.previous_target = None
         self.render_path = []
@@ -51,17 +52,6 @@ class DStarLiteAgent(BaseAgent):
 
         self.wayPoint = 0
 
-
-        # Initialize the VelocityObstacle instance
-        # self.velocity_obstacle = VelocityObstacle(
-        #     robot_radius=self.robot_radius,
-        #     max_speed=self.max_speed,
-        #     min_speed=self.min_speed
-        # )
-
-    
-    # def compute_velocity(self, robot: Robot, target: Point, targetVel):
-    #     RVO_update
 
 
     def update(self,  
@@ -87,7 +77,7 @@ class DStarLiteAgent(BaseAgent):
         self.current_target = current_target
 
         if current_target and self.has_target:
-            self.decision( current_target)
+            self.decision(current_target)
             self.post_decision()
 
         else:
@@ -97,23 +87,30 @@ class DStarLiteAgent(BaseAgent):
         return Robot(id=self.id, yellow=self.yellow,
                     v_x=self.next_vel.x, v_y=self.next_vel.y, v_theta=self.angle_vel)
 
+    # def set_grids(self, grid, start_cell, goal_cell):
+    #     self.grid = grid
+    #     self.start = start_cell
+    #     self.goal_cell = goal_cell
+
+    # def set_global_changes(self, global_changes):
+    #     self.global_changes = global_changes
 
     def decision(self, current_target = None):
         
         # Create Grid, get start and goal cells
-        current_grid, start_cell, goal_cell = self.grid_converter.create_grids(current_target, self.opponents,  self.robot_radius, self.robot)
+        self.grid, self.start, self.goal_cell = self.grid_converter.create_grids(current_target, self.opponents,  self.robot_radius, self.robot)
 
-
-        global_changes = self.grid_converter.detect_changes(self.grid, current_grid)
+        if self.last_grid is not None:
+            self.global_changes = self.grid_converter.detect_changes(self.last_grid, self.grid)
         
         if self.dstar:
-            changes = self.grid_converter.detect_changes_allong_path(self.dstar.grid, current_grid, self.path)
+            changes_allong_path = self.grid_converter.detect_changes_allong_path(self.dstar.grid, self.grid, self.path)
         else:
-            changes = []
+            changes_allong_path = []
 
 
         if not self.dstar or self.target_helper.hasTargetChanged(current_target, self.previous_target):
-            self.dstar = DStarLite(grid=current_grid, start=start_cell, goal=goal_cell, id=self.id)
+            self.dstar = DStarLite(grid=self.grid, start=self.start, goal=self.goal_cell, id=self.id)
             self.dstar.compute_shortest_path()
             self.path = self.dstar.reconstruct_path()
             self.wayPoint = 1 
@@ -121,14 +118,14 @@ class DStarLiteAgent(BaseAgent):
             self.last_start = self.dstar.start
 
         # If any edge cost has changed
-        elif (changes) or goal_cell not in self.path:
+        elif (changes_allong_path) or self.goal_cell not in self.path:
             # Update D* Lite K_m value
 
             print("Updating Path")
 
             self.dstar.Km +=  self.dstar.heuristic(self.dstar.start, self.last_start)
 
-            self.dstar.update_grid(global_changes, current_grid)
+            self.dstar.update_grid(self.global_changes, self.grid)
 
             self.dstar.compute_shortest_path()
             self.path = self.dstar.reconstruct_path()
@@ -156,7 +153,8 @@ class DStarLiteAgent(BaseAgent):
         
         self.render_path = [Point(x, y) for x, y in continuous_path]
         self.previous_target = current_target
-        self.grid = current_grid
+
+        self.last_grid = self.grid
 
         # self.grid_converter.visualize_grid(self.grid, self.dstar.start, goal_cell, self.path)
 

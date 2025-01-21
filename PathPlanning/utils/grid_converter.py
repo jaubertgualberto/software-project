@@ -105,7 +105,7 @@ class GridConverter:
         self.calculate_grid_offset(current_target.x, current_target.y)
         
         # Create occupancy grid
-        current_grid = self.create_grid(opponents, robot_radius)
+        # current_grid = self.create_grid(opponents, robot_radius)
         
         # Get start and goal cells
         start_cell = self.continuous_to_grid(robot.x, robot.y)

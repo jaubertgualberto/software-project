@@ -2,8 +2,9 @@ import numpy as np
 from typing import List, Set, Tuple
 from utils.Point import Point
 from rsoccer_gym.Entities import Robot
-from dstarAgent import DStarLiteAgent
+from dStarAgent import DStarLiteAgent
 from utils.ssl.Navigation import Navigation
+from PathPlanning.utils.grid_converter import GridConverter
 
 
 
@@ -24,12 +25,15 @@ class CentralPlanner:
     
     def __init__(self,
                 agents: dict[int, DStarLiteAgent] = dict()):
+        self.grid_size = 20
         
         self.agents = agents
-        # print("Agents: ", self.agents)
         self.targets = []
         self.pursued_targets = []
-        # print(f"Pursued targets: {self.pursued_targets}")
+        self.grid_converter = GridConverter(field_length=6.0, field_width=4.0, grid_size=self.grid_size)
+        self.robot_radius = 0.06
+        self.grid = None
+        self.last_grid = None
 
     
     def add_target(self, target: Point):
@@ -61,19 +65,25 @@ class CentralPlanner:
              teammates: dict[int, Robot] = dict(), 
              obstacles: dict[int, Robot] = []) -> List[Robot]:
         
-        # self.targets = targets.copy()
         self.teammates = teammates.copy()
 
-
-
         remove_self = lambda robots, selfId: {id: robot for id, robot in robots.items() if id != selfId}
+        # Create global shared grid
+        # current_grid, start_cell, goal_cell = self.grid_converter.create_grids(current_target, self.opponents,  self.robot_radius, self.robot)
+        
 
-        # print("Agents: ", len(self.agents))
+
+        # goal_cell = self.continuous_to_grid(current_target.x, current_target.y)
+        if self.grid is not None:
+            global_changes = self.grid_converter.detect_changes(self.last_grid, self.grid)
+        else:
+            global_changes = []
 
         my_actions = []
         for agent in self.agents.values():
+            current_grid = self.grid_converter.create_grid(remove_self(obstacles, agent.id), self.robot_radius)
+
             agent.update(robots_blue[agent.id], remove_self(obstacles, agent.id), teammates)
-            # assigned_target = self.assign_target(agent) if agent.has_target == False else agent.current_target
 
             if agent.has_target:
                 assigned_target = agent.current_target
@@ -81,6 +91,7 @@ class CentralPlanner:
             elif self.num_targets_left() > 0:
                 # Pursue the target left
                 assigned_target = self.assign_target(agent)
+                
 
                 # Reset standing point
                 agent.set_standing_point(None)
@@ -90,13 +101,22 @@ class CentralPlanner:
                 if agent.standing_point is None:
                     point = Point(agent.robot.x, agent.robot.y)
                     agent.set_standing_point(point)
-                # print(f"Agent {agent.color} has no target left.")
             
+            
+            # if assigned_target is not None:
+            #     agent_start_cell, goal_cell = self.grid_converter.create_grids(assigned_target, agent.robot)
+            #     assert self.grid_converter.verify_target_alignment(assigned_target)
+            
+            #     agent.set_grids(current_grid, agent_start_cell, goal_cell)
+            #     agent.set_global_changes(global_changes)
+
             action = agent.step(current_target=assigned_target)
-            # print(f"Action 2: {action}")
             my_actions.append(action)
 
-        # print(f"Returned actions: {my_actions}")
+
+        self.last_grid = self.grid
+        self.grid = current_grid
+
         return my_actions
     
     def assign_target(self, agent: DStarLiteAgent) -> Point:
@@ -116,7 +136,6 @@ class CentralPlanner:
 
                 distances = [Navigation.distance_to_point(agent.robot, target) 
                            for target in available_targets]
-                
 
                 # Find the closest available target
                 closest_idx = np.argmin(distances)
@@ -125,9 +144,7 @@ class CentralPlanner:
                 # Assign this robot to the target
                 assigned_target = self.targets[target_idx][0]
                 self.targets[target_idx] = (assigned_target, True)
-                # self.pursued_targets[target_idx] = True
                 agent.has_target = True
-                # print("Teste")
             else:
                 # No available targets, stay in place
                 agent.has_target = False
