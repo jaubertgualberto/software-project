@@ -9,7 +9,6 @@ from rsoccer_gym.Entities import Robot
 from PathPlanning.d_star_lite import DStarLite
 from PathPlanning.utils.handle_target import TargetHelper
 
-from PathPlanning.velocity_obstacles import RVO_update
 
 colors = [  
     "RED",
@@ -24,35 +23,67 @@ colors = [
     "HAZEL",
     ]
 
-class DStarLiteAgent(BaseAgent):
+class MainAgent(BaseAgent):
     def __init__(self, id=0, yellow=False):
         super().__init__(id, yellow)
-        self.robot_radius = 0.06
-        self.grid_size = 20
-        self.grid_converter = GridConverter(field_length=6.0, field_width=4.0, grid_size=self.grid_size)
+        self.robot_radius = 0.08
+        self.grid_size = 25
+        self.grid_converter = GridConverter(field_length=6.0, field_width=4.3, grid_size=self.grid_size)
         self.target_helper = TargetHelper(grid_converter=self.grid_converter)
 
         self.grid = None
-        self.last_grid = None
         self.dstar = None
         self.previous_target = None
         self.render_path = []
 
         self.max_speed = 4.0    
-        self.min_speed = 0.4
+        self.min_speed = 1
 
         self.has_target = False
         self.current_target = None
         self.color = colors[id]
         self.standing_point = None
         self.safety_radius = 0.4 
+        self.total_steps = 0
 
         self.path = []
-        self.last_start  = []
 
-        self.wayPoint = 0
+        self.wayPoint = 1
 
+    def goTo(self, point: Point):
+        """
+        Define linear and angular velocity to robot reach a target point while avoiding imediate collisions.
 
+        Args: 
+            point: Target point to reach.
+        """
+
+        target_velocity, target_angle_velocity = Navigation.goToPoint(
+            self.robot, point
+        )
+        
+        # If waiting, try to avoid collisions
+        if Navigation.distance_to_point(self.robot, point) < 0.08:
+            evasive_vel = get_evasive_velocity(self.opponents, self.robot, self.safety_radius, self.max_speed)
+            if evasive_vel.x != 0 or evasive_vel.y != 0:
+                self.set_vel(evasive_vel)
+                return
+
+        
+        self.set_vel(target_velocity)
+        self.set_angle_vel(target_angle_velocity)
+
+    def wait(self):
+        """ Stand at stand point and avoid try collisions """
+
+        if self.standing_point is None:
+            # Get evasive action if needed while standing still
+            safe_vel = get_evasive_velocity(self.opponents, self.robot, self.safety_radius, self.max_speed)
+            self.set_vel(safe_vel)
+            self.set_angle_vel(0.0)
+        else:
+            self.goTo(self.standing_point)
+   
 
     def update(self,  
              self_robot: Robot, 
@@ -71,13 +102,14 @@ class DStarLiteAgent(BaseAgent):
         self.opponents = opponents.copy()
         self.teammates = teammates.copy()   
 
-
     def step(self, current_target: Point = None) -> Robot:
+
+        self.total_steps+=1
 
         self.current_target = current_target
 
         if current_target and self.has_target:
-            self.decision(current_target)
+            self.decision( current_target)
             self.post_decision()
 
         else:
@@ -87,53 +119,48 @@ class DStarLiteAgent(BaseAgent):
         return Robot(id=self.id, yellow=self.yellow,
                     v_x=self.next_vel.x, v_y=self.next_vel.y, v_theta=self.angle_vel)
 
-    # def set_grids(self, grid, start_cell, goal_cell):
-    #     self.grid = grid
-    #     self.start = start_cell
-    #     self.goal_cell = goal_cell
-
-    # def set_global_changes(self, global_changes):
-    #     self.global_changes = global_changes
-
     def decision(self, current_target = None):
         
         # Create Grid, get start and goal cells
-        self.grid, self.start, self.goal_cell = self.grid_converter.create_grids(current_target, self.opponents,  self.robot_radius, self.robot)
+        current_grid, start_cell, goal_cell = self.grid_converter.create_grids(current_target, self.opponents,  self.robot_radius, self.robot)
 
-        if self.last_grid is not None:
-            self.global_changes = self.grid_converter.detect_changes(self.last_grid, self.grid)
-        
+        # Detect Local Changes
         if self.dstar:
-            changes_allong_path = self.grid_converter.detect_changes_allong_path(self.dstar.grid, self.grid, self.path)
+            changes = self.grid_converter.detect_changes_allong_path(self.dstar.grid, current_grid, self.path)
         else:
-            changes_allong_path = []
+            changes = []
 
-
+        # If target has changed or D* Lite has not been initialized
         if not self.dstar or self.target_helper.hasTargetChanged(current_target, self.previous_target):
-            self.dstar = DStarLite(grid=self.grid, start=self.start, goal=self.goal_cell, id=self.id)
+            self.dstar = DStarLite(grid=current_grid, start=start_cell, goal=goal_cell, id=self.id)
             self.dstar.compute_shortest_path()
             self.path = self.dstar.reconstruct_path()
             self.wayPoint = 1 
 
             self.last_start = self.dstar.start
 
-        # If any edge cost has changed
-        elif (changes_allong_path) or self.goal_cell not in self.path:
-            # Update D* Lite K_m value
+        # If any edge cost has changed, update the path
+        elif (changes) or (goal_cell not in self.path):
 
-            print("Updating Path")
+            # Get Global Changes
+            global_changes = self.grid_converter.detect_changes(self.grid, current_grid)   
 
+            if (goal_cell not in self.path):
+                self.dstar.compute_shortest_path()
+
+
+            # print("Updating Path")
+            # Update key meause for D* lite
             self.dstar.Km +=  self.dstar.heuristic(self.dstar.start, self.last_start)
-
-            self.dstar.update_grid(self.global_changes, self.grid)
-
-            self.dstar.compute_shortest_path()
+            # Update D* Grid
+            self.dstar.update_grid(global_changes, current_grid)
+            # Get new path
             self.path = self.dstar.reconstruct_path()
 
             self.last_start = self.dstar.start
 
             
-        # Convert to continuous coordinates
+        # Convert to continuous coordinates (for rendering)
         continuous_path = [
             self.grid_converter.grid_to_continuous(grid_x, grid_y)
             for grid_x, grid_y in self.path
@@ -144,7 +171,7 @@ class DStarLiteAgent(BaseAgent):
         if next_point:
             self.goTo(next_point)
 
-            # Update waypoint if reached
+            # Remove point from path if reached
             if self.target_helper.reachedWayPoint(next_point, self.robot):
                 self.path.pop(0)
                 
@@ -153,62 +180,23 @@ class DStarLiteAgent(BaseAgent):
         
         self.render_path = [Point(x, y) for x, y in continuous_path]
         self.previous_target = current_target
+        self.grid = current_grid
 
-        self.last_grid = self.grid
-
-        # self.grid_converter.visualize_grid(self.grid, self.dstar.start, goal_cell, self.path)
-
+        # if(self.total_steps % 120 == 0):
+        #     self.grid_converter.visualize_grid(self.grid, self.dstar.start, goal_cell, self.path)
 
     def post_decision(self):
-        # # Adjust velocity to avoid dynamic obstacles
-        # adjusted_velocity = self.velocity_obstacle.avoid_collision(
-        #     self.next_vel, self.robot, self.opponents
-        # )
-        # if adjusted_velocity is not None:
-        #     self.set_vel(adjusted_velocity)
         pass
 
-
-    def goTo(self, point: Point):
-        """
-        Define linear and angular velocity to robot reach a target point while avoiding imediate collisions.
-
-        Args: 
-            point: Target point to reach.
-        """
-
-        target_velocity, target_angle_velocity = Navigation.goToPoint(
-            self.robot, point
-        )
-        
-        # If we're close to our target point, check for evasive action
-        if Navigation.distance_to_point(self.robot, point) < 0.08:
-            evasive_vel = get_evasive_velocity(self.opponents, self.robot, self.safety_radius, self.max_speed)
-            if evasive_vel.x != 0 or evasive_vel.y != 0:
-                self.set_vel(evasive_vel)
-                return
-                
-        self.set_vel(target_velocity)
-        self.set_angle_vel(target_angle_velocity)
-
-
-    def wait(self):
-        """ Stand still and avoid collisions """
-
-        if self.standing_point is None:
-            # Get evasive action if needed while standing still
-            safe_vel = get_evasive_velocity(self.opponents, self.robot, self.safety_radius, self.max_speed)
-            self.set_vel(safe_vel)
-            self.set_angle_vel(0.0)
-        else:
-            self.goTo(self.standing_point)
-   
-   
     def set_standing_point(self, point: Point):
+        """
+        Set a standing point for the agent to wait at
+        Args:
+            Point to stand at
+        """
         self.standing_point = point
-
-
 
     def get_planned_path(self):
         """Return the current planned path for rendering"""
+        # return self.render_path
         return self.render_path

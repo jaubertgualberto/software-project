@@ -1,57 +1,59 @@
 import numpy as np
-from typing import List, Set, Tuple
+from typing import List
 from utils.Point import Point
 from rsoccer_gym.Entities import Robot
-from dStarAgent import DStarLiteAgent
+from agent import MainAgent
 from utils.ssl.Navigation import Navigation
-from PathPlanning.utils.grid_converter import GridConverter
 
 
-
-
-"""
-
-To do:
-    "Add parallel path planning for agents",
-    "Implement error handling in step method",
-    "Create monitoring for completed targets"
-
-    "Create shared grid"
-    "Handle case when one agent reach another agent target" ok
-
-"""
 
 class CentralPlanner:
     
     def __init__(self,
-                agents: dict[int, DStarLiteAgent] = dict()):
-        self.grid_size = 20
-        
+                agents: dict[int, MainAgent] = dict()):
+        """
+        Central Planner Class design to manage multiples agents and targets.
+        """
         self.agents = agents
         self.targets = []
         self.pursued_targets = []
-        self.grid_converter = GridConverter(field_length=6.0, field_width=4.0, grid_size=self.grid_size)
         self.robot_radius = 0.06
-        self.grid = None
-        self.last_grid = None
 
     
     def add_target(self, target: Point):
+        """
+        Add new target for central planner.
+        Args:
+            Target point: Point
+        """
         new_target = Point(target.x, target.y)
         self.targets.append((new_target, False))
 
     def get_agent_from_target(self, target: Point):
+        """
+        Returns the agent pursuing the target.
+
+        Args:
+            Target point: Point
+        """
+        
         for agent in self.agents.values():
             if agent.current_target == target:
                 return agent
 
     def agent_reached_target(self, target: Point):
+        """
+        Handles when an agent reaches the target. 
+        Args:
+            Target point: Point
+        """
         try:
             agent_target = self.get_agent_from_target(target)
             agent_target.has_target = False
             self.targets.remove((target, True))
         except:
-            print("Error: Agent not found")
+            # ToDo: Implement this. 
+            pass
 
 
     def num_targets_left(self):
@@ -68,21 +70,9 @@ class CentralPlanner:
         self.teammates = teammates.copy()
 
         remove_self = lambda robots, selfId: {id: robot for id, robot in robots.items() if id != selfId}
-        # Create global shared grid
-        # current_grid, start_cell, goal_cell = self.grid_converter.create_grids(current_target, self.opponents,  self.robot_radius, self.robot)
-        
-
-
-        # goal_cell = self.continuous_to_grid(current_target.x, current_target.y)
-        if self.grid is not None:
-            global_changes = self.grid_converter.detect_changes(self.last_grid, self.grid)
-        else:
-            global_changes = []
 
         my_actions = []
         for agent in self.agents.values():
-            current_grid = self.grid_converter.create_grid(remove_self(obstacles, agent.id), self.robot_radius)
-
             agent.update(robots_blue[agent.id], remove_self(obstacles, agent.id), teammates)
 
             if agent.has_target:
@@ -91,7 +81,6 @@ class CentralPlanner:
             elif self.num_targets_left() > 0:
                 # Pursue the target left
                 assigned_target = self.assign_target(agent)
-                
 
                 # Reset standing point
                 agent.set_standing_point(None)
@@ -102,25 +91,21 @@ class CentralPlanner:
                     point = Point(agent.robot.x, agent.robot.y)
                     agent.set_standing_point(point)
             
-            
-            # if assigned_target is not None:
-            #     agent_start_cell, goal_cell = self.grid_converter.create_grids(assigned_target, agent.robot)
-            #     assert self.grid_converter.verify_target_alignment(assigned_target)
-            
-            #     agent.set_grids(current_grid, agent_start_cell, goal_cell)
-            #     agent.set_global_changes(global_changes)
-
             action = agent.step(current_target=assigned_target)
             my_actions.append(action)
 
-
-        self.last_grid = self.grid
-        self.grid = current_grid
-
         return my_actions
     
-    def assign_target(self, agent: DStarLiteAgent) -> Point:
+    def assign_target(self, agent: MainAgent) -> Point:
+        """
+        Assign a target to agent based on the closest available target.
 
+        Args:
+            agent: MainAgent object
+
+        Returns:
+            assigned_target: Point object
+        """
         assigned_target = None
 
         if agent.current_target is None:
@@ -133,7 +118,7 @@ class CentralPlanner:
                     available_target_indices.append(i)
 
             if available_targets:
-
+                # Compute distances from agents to available targets
                 distances = [Navigation.distance_to_point(agent.robot, target) 
                            for target in available_targets]
 

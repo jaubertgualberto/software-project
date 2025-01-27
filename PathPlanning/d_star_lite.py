@@ -10,9 +10,7 @@ D* Liter Algorithm: https://idm-lab.org/bib/abstracts/papers/aaai02b.pdf
 
 class DStarLite:
     def __init__(self, grid: np.ndarray, start: Tuple[int, int], goal: Tuple[int, int], id=0):
-        """
-        Initialize the D* Lite algorithm with enhanced error handling
-        """
+
         self.grid = grid.copy() 
         self.start = start
         self.goal = goal
@@ -23,8 +21,8 @@ class DStarLite:
 
         self.Km = 0
 
-
-        print("Initialize ", id)
+        # Initialize
+        # print("Initialize ", id)
 
         # Initialize costs
         for x in range(self.rows):
@@ -33,6 +31,7 @@ class DStarLite:
                 self.rhs[(x, y)] = float('inf')
 
         self.rhs[self.goal] = 0
+
         key = self.calculate_key(self.goal)
         heapq.heappush(self.U, (key, self.goal))
         
@@ -43,17 +42,28 @@ class DStarLite:
             raise ValueError(f"Goal position {goal} is outside grid bounds")
 
 
+    def calculate_key(self, u: Tuple[int, int]) -> Tuple[float, float]:
+        """
+        Calculate the priority key for a given u.
+
+        Args:
+            u: Tuple representing the cell (x, y)
+
+        Returns:
+            Tuple representing the priority key.
+        """ 
+        # Return [min(g, rhs) + h(start, u) + km, min(g, rhs)]
+        g_rhs = min(self.g[u], self.rhs[u])
+        h = self.heuristic(self.start, u)
+        # k1, k2
+        return (g_rhs + h + self.Km, g_rhs)
+
+
     def update_vertex(self, u: Tuple[int, int] ):
         """
         Update vertex
         """
-        # if has_changed:
-            # self.Km += self.heuristic(self.start, )
 
-        # ignore invalid us
-        if not self.is_valid_coordinates(u):
-            return  
-            
         if u != self.goal:
             valid_neighbors = [n for n in self.get_neighbors(u) if self.is_valid_coordinates(n)]
             if valid_neighbors:
@@ -61,10 +71,9 @@ class DStarLite:
                     self.g[neighbor] + self.get_edge_cost(u, neighbor)
                     for neighbor in valid_neighbors
                 )
-            else:
-                self.rhs[u] = float('inf')
-
+        # if u in self.U:
         self.remove_from_queue(u)
+
         if self.g[u] != self.rhs[u]:
             heapq.heappush(self.U, (self.calculate_key(u), u))
 
@@ -96,18 +105,17 @@ class DStarLite:
 
     def compute_shortest_path(self):
         """
-        Compute shortest path with timeout and error handling
+        Compute shortest path
         """
         # print("Compute shortest path")
-        max_iterations = self.rows * self.cols * 4  
-        iteration = 0
         
         while self.U:
             k_old, u = heapq.heappop(self.U)
             k_new = self.calculate_key(u)
+
+
             if k_old < k_new:
                 heapq.heappush(self.U, (k_new, u))
-                continue
 
             # Inconsistent u (Overconsistent)
             elif self.g[u] > self.rhs[u]:
@@ -115,6 +123,7 @@ class DStarLite:
                 for neighbor in self.get_neighbors(u):
                     if self.is_valid_coordinates(neighbor):
                         self.update_vertex(neighbor)
+
             # Consistent u (Underconsistent)
             else:
                 self.g[u] = float('inf')
@@ -122,19 +131,12 @@ class DStarLite:
                 for neighbor in self.get_neighbors(u):
                     if self.is_valid_coordinates(neighbor):
                         self.update_vertex(neighbor)
-                        
-            iteration += 1
-            
-        if iteration >= max_iterations:
-            pass
+                    
 
     def reconstruct_path(self) -> List[Tuple[int, int]]:
         """
         Reconstruct path with enhanced error handling
         """
-        # print("Reconstruct path")
-        if self.g[self.start] == float('inf'):
-            return [self.start]  # Return current position if no path exists
             
         path = []
         current = self.start
@@ -145,34 +147,21 @@ class DStarLite:
             neighbors = [n for n in self.get_neighbors(current) 
                        if self.is_valid_coordinates(n)]
             
+            # No possible cells to move to
             if not neighbors:
                 break
                 
             # Choose next step based on lowest cost
             current = min(neighbors, 
                         key=lambda n: (self.g[n] + self.get_edge_cost(current, n)))
-            
-        path.append(current)  # Add final position
         
-        if current != self.goal:
-            pass
+        # Add final position
+        path.append(current)  
+
             
         return path
     
-    def calculate_key(self, u: Tuple[int, int]) -> Tuple[float, float]:
-        """
-        Calculate the priority key for a given u.
-
-        Args:
-            u: Tuple representing the cell (x, y)
-
-        Returns:
-            Tuple representing the priority key.
-        """ 
-        # Return [min(g, rhs) + h(start, u) + km, min(g, rhs)]
-        g_rhs = min(self.g[u], self.rhs[u])
-        return (g_rhs + self.heuristic(self.start, u) + self.Km, g_rhs)
-
+ 
     def heuristic(self, a: Tuple[int, int], b: Tuple[int, int]) -> float:
         """
         Compute the heuristic (Manhattan distance).
@@ -185,12 +174,12 @@ class DStarLite:
             Heuristic value.
         """
         # Euclidean distance
-        return np.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
+        # return np.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
 
         # Minkowski distance (p = 1 -> Manhattan distance, p = 2 -> Euclidean distance)
-        # p = 1.5
-        # distance = (abs(a[0] - b[0])**p + abs(a[1] - b[1])**p) ** (1/p)
-        # return distance
+        p = 1.7
+        distance = (abs(a[0] - b[0])**p + abs(a[1] - b[1])**p) ** (1/p)
+        return distance
 
         # Manhattan distance
         # return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -218,7 +207,7 @@ class DStarLite:
             List of neighboring cells.
         """
         x, y = u
-        neighbors = [(x + dx, y + dy) for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]]
+        neighbors = [(x + dx, y + dy) for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (-1, 1), (1, -1), (1, 1)]] # 8-connected
         return neighbors
 
     def update_grid(self, updated_cells: List[Tuple[int, int]], current_grid: np.ndarray):
@@ -242,7 +231,7 @@ class DStarLite:
             True if valid, False otherwise.
         """
         x, y = u
-        # Allow the goal to be valid even if it's an obstacle
+        # Allow the goal to be valid even if it is in an obstacle
         if u == self.goal:
             return True
         return 0 <= x < self.rows and 0 <= y < self.cols and self.grid[x, y] == 0

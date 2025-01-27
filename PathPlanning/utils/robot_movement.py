@@ -1,13 +1,6 @@
-from utils.ssl.Navigation import Navigation
 from utils.Point import Point
-from typing import List, Set, Tuple
 import numpy as np
 from rsoccer_gym.Entities import Robot
-
-
-
-
-
 
 
 def get_evasive_velocity(opponents: dict[int, Robot], robot: Robot, safety_radius: float, max_speed: float) -> Point:

@@ -1,6 +1,4 @@
-import matplotlib.pyplot as plt
 from typing import List, Tuple
-import numpy as np
 from utils.Point import Point
 from utils.ssl.Navigation import Navigation
 from utils.Point import Point
@@ -10,6 +8,13 @@ from rsoccer_gym.Entities import Robot
     
 class TargetHelper:
     def __init__(self, grid_converter: GridConverter):
+        """
+        TargetHelper class design to manage targets and waypoints.
+
+        Args:
+            grid_converter (GridConverter): Grid converter object.
+        """
+
         self.grid_converter = grid_converter
 
     def get_next_waypoint(self, path: List[Tuple[int, int]], wayPoint: int, grid_converter: GridConverter) -> Point:
@@ -27,7 +32,6 @@ class TargetHelper:
 
         if not path or wayPoint >= len(path):
             return None
-        # Directly get the waypoint
         return Point(*grid_converter.grid_to_continuous(*path[wayPoint]))
 
     @staticmethod

@@ -6,8 +6,7 @@ from rsoccer_gym.Utils import KDTree
 from utils.Point import Point
 from utils.FixedQueue import FixedQueue
 from utils.ssl.small_field import SSLHRenderField
-from dStarAgent import DStarLiteAgent
-from astarAgent import AStarAgent
+from agent import MainAgent
 
 from random_agent import RandomAgent
 import random
@@ -24,7 +23,7 @@ from centralPlanner import CentralPlanner
 colors = {    
     0  : (151, 21, 0),
     1  : (220, 220, 220),
-    2  : (20, 90, 45),
+    2  : (0, 214, 190),
     3  : (0, 128, 0),
     4  : (253, 106, 2),
     5  : (0, 64, 255),
@@ -34,6 +33,9 @@ colors = {
     9  : (220, 0, 220),
     10 : (250,165,112)
     }
+
+
+
 
 class SSLExampleEnv(SSLBaseEnv):
     def __init__(self, render_mode="human", difficulty=Difficulty.EASY):
@@ -62,7 +64,7 @@ class SSLExampleEnv(SSLBaseEnv):
         self.rounds = self.max_rounds  ## because of the first round
         self.targets_per_round = 1
 
-        self.my_agents = {0: DStarLiteAgent(0, False)}
+        self.my_agents = {0: MainAgent(0, False)}
         
         self.blue_agents = {i: RandomAgent(i, False) for i in range(1, 11)}
         self.yellow_agents = {i: RandomAgent(i, True) for i in range(0, 11)}
@@ -75,7 +77,17 @@ class SSLExampleEnv(SSLBaseEnv):
             self.field_renderer = SSLHRenderField()
             self.window_size = self.field_renderer.window_size
             
-
+        goal_depth = 0.12  #at the goal center
+        goal_length = 0.37
+        self.goal_coordinates = [(-self.field.length/2-goal_depth, goal_length), 
+                            (-self.field.length/2-goal_depth, -goal_length),
+                            (self.field.length/2+goal_depth, goal_length),
+                            (self.field.length/2+goal_depth, -goal_length),
+                            (self.field.length/2, 0), (-self.field.length/2, 0),
+                            (self.field.length/2, goal_length/2), (-self.field.length/2, goal_length/2),
+                            (self.field.length/2, -goal_length/2), (-self.field.length/2, -goal_length/2),
+                            ]
+        
         
     def _frame_to_observations(self):
         ball, robot = self.frame.ball, self.frame.robots_blue[0]
@@ -86,7 +98,12 @@ class SSLExampleEnv(SSLBaseEnv):
         obstacles = {id: robot for id, robot in self.frame.robots_blue.items()}
         for i in range(0, self.n_robots_yellow):
             obstacles[i + self.n_robots_blue] = self.frame.robots_yellow[i]
+        
+        # for coord in self.goal_coordinates:
+        #     obstacles[len(obstacles)] = Robot(x=coord[0], y=coord[1])
+
         teammates = {id: self.frame.robots_blue[id] for id in self.my_agents.keys()}
+        
 
 
         remove_self = lambda robots, selfId: {id: robot for id, robot in robots.items() if id != selfId}
@@ -147,7 +164,7 @@ class SSLExampleEnv(SSLBaseEnv):
                 self.blue_agents.pop(len(self.my_agents))
 
                 len_agents = len(self.my_agents)
-                agent = DStarLiteAgent(len_agents, False)
+                agent = MainAgent(len_agents, False)
                 self.my_agents[len_agents] = agent
 
 
@@ -203,10 +220,7 @@ class SSLExampleEnv(SSLBaseEnv):
         pos_frame.robots_blue[0] = Robot(x=self.x(), y=self.y(), theta=theta())
 
         self.targets = [Point(x=self.x(), y=self.y())]
-        # self.pursued_targets = [False]
 
-        # self.central_planner.targets = self.targets
-        # self.central_planner.pursued_targets = self.pursued_targets
 
         target = self.targets[0]
         self.central_planner.add_target(target)
@@ -271,7 +285,8 @@ class SSLExampleEnv(SSLBaseEnv):
                 robot.theta,
                 self.field_renderer.scale,
                 robot.id,
-                colors[i] if i < len(self.my_agents) else COLORS["BLUE"]
+                COLORS["BLUE"]
+                # colors[i] if i < len(self.my_agents) else COLORS["BLUE"]
             )
             
             rbt.draw(self.window_surface)
@@ -332,11 +347,11 @@ class SSLExampleEnv(SSLBaseEnv):
                     
                     # Draw points first
                     for point in path_points:
-                        pygame.draw.circle(self.window_surface, (255, 255, 0), point, 4)
+                        pygame.draw.circle(self.window_surface, colors[agent_id], point, 4)
                     
                     # Draw lines only if we have 2 or more points
                     if len(path_points) >= 2:
-                        pygame.draw.lines(self.window_surface, (255, 255, 0), False, path_points, 2)
+                        pygame.draw.lines(self.window_surface, colors[agent_id], False, path_points, 2)
                         
                     # Highlight start and end points
                     if path_points:
