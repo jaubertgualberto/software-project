@@ -27,7 +27,7 @@ class MainAgent(BaseAgent):
     def __init__(self, id=0, yellow=False):
         super().__init__(id, yellow)
         self.robot_radius = 0.08
-        self.grid_size = 25
+        self.grid_size = 35
         self.grid_converter = GridConverter(field_length=6.0, field_width=4.3, grid_size=self.grid_size)
         self.target_helper = TargetHelper(grid_converter=self.grid_converter)
 

@@ -32,7 +32,7 @@ class DStarLite:
 
         self.rhs[self.goal] = 0
 
-        key = self.calculate_key(self.goal)
+        key = self._calculate_key(self.goal)
         heapq.heappush(self.U, (key, self.goal))
         
         # Verify initial conditions
@@ -42,7 +42,7 @@ class DStarLite:
             raise ValueError(f"Goal position {goal} is outside grid bounds")
 
 
-    def calculate_key(self, u: Tuple[int, int]) -> Tuple[float, float]:
+    def _calculate_key(self, u: Tuple[int, int]) -> Tuple[float, float]:
         """
         Calculate the priority key for a given u.
 
@@ -59,29 +59,29 @@ class DStarLite:
         return (g_rhs + h + self.Km, g_rhs)
 
 
-    def update_vertex(self, u: Tuple[int, int] ):
+    def _update_vertex(self, u: Tuple[int, int] ):
         """
         Update vertex
         """
 
         if u != self.goal:
-            valid_neighbors = [n for n in self.get_neighbors(u) if self.is_valid_coordinates(n)]
+            valid_neighbors = [n for n in self._get_neighbors(u) if self._is_valid_coordinates(n)]
             if valid_neighbors:
                 self.rhs[u] = min(
-                    self.g[neighbor] + self.get_edge_cost(u, neighbor)
+                    self.g[neighbor] + self._get_edge_cost(u, neighbor)
                     for neighbor in valid_neighbors
                 )
         # if u in self.U:
-        self.remove_from_queue(u)
+        self._remove_from_queue(u)
 
         if self.g[u] != self.rhs[u]:
-            heapq.heappush(self.U, (self.calculate_key(u), u))
+            heapq.heappush(self.U, (self._calculate_key(u), u))
 
-    def get_edge_cost(self, current: Tuple[int, int], neighbor: Tuple[int, int]) -> float:
+    def _get_edge_cost(self, current: Tuple[int, int], neighbor: Tuple[int, int]) -> float:
         """
         Calculate edge cost with penalties for obstacles
         """
-        if not self.is_valid_coordinates(neighbor):
+        if not self._is_valid_coordinates(neighbor):
             return float('inf')
             
         base_cost = 1.0
@@ -96,7 +96,7 @@ class DStarLite:
             
         return base_cost
 
-    def is_valid_coordinates(self, u: Tuple[int, int]) -> bool:
+    def _is_valid_coordinates(self, u: Tuple[int, int]) -> bool:
         """
         Check if coordinates are within grid bounds
         """
@@ -111,7 +111,7 @@ class DStarLite:
         
         while self.U:
             k_old, u = heapq.heappop(self.U)
-            k_new = self.calculate_key(u)
+            k_new = self._calculate_key(u)
 
 
             if k_old < k_new:
@@ -120,17 +120,17 @@ class DStarLite:
             # Inconsistent u (Overconsistent)
             elif self.g[u] > self.rhs[u]:
                 self.g[u] = self.rhs[u]
-                for neighbor in self.get_neighbors(u):
-                    if self.is_valid_coordinates(neighbor):
-                        self.update_vertex(neighbor)
+                for neighbor in self._get_neighbors(u):
+                    if self._is_valid_coordinates(neighbor):
+                        self._update_vertex(neighbor)
 
             # Consistent u (Underconsistent)
             else:
                 self.g[u] = float('inf')
-                self.update_vertex(u)
-                for neighbor in self.get_neighbors(u):
-                    if self.is_valid_coordinates(neighbor):
-                        self.update_vertex(neighbor)
+                self._update_vertex(u)
+                for neighbor in self._get_neighbors(u):
+                    if self._is_valid_coordinates(neighbor):
+                        self._update_vertex(neighbor)
                     
 
     def reconstruct_path(self) -> List[Tuple[int, int]]:
@@ -144,8 +144,8 @@ class DStarLite:
         
         while current != self.goal and len(path) < max_path_length:
             path.append(current)
-            neighbors = [n for n in self.get_neighbors(current) 
-                       if self.is_valid_coordinates(n)]
+            neighbors = [n for n in self._get_neighbors(current) 
+                       if self._is_valid_coordinates(n)]
             
             # No possible cells to move to
             if not neighbors:
@@ -153,7 +153,7 @@ class DStarLite:
                 
             # Choose next step based on lowest cost
             current = min(neighbors, 
-                        key=lambda n: (self.g[n] + self.get_edge_cost(current, n)))
+                        key=lambda n: (self.g[n] + self._get_edge_cost(current, n)))
         
         # Add final position
         path.append(current)  
@@ -185,7 +185,7 @@ class DStarLite:
         # return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
    
-    def remove_from_queue(self, u: Tuple[int, int]):
+    def _remove_from_queue(self, u: Tuple[int, int]):
         """
         Remove a u from the priority queue if it exists.
 
@@ -196,7 +196,7 @@ class DStarLite:
         heapq.heapify(self.U)
 
    
-    def get_neighbors(self, u: Tuple[int, int]) -> List[Tuple[int, int]]:
+    def _get_neighbors(self, u: Tuple[int, int]) -> List[Tuple[int, int]]:
         """
         Get the neighbors of a given cell.
 
@@ -217,10 +217,10 @@ class DStarLite:
 
         for cell in updated_cells:
             self.grid[cell] = current_grid[cell]
-            self.update_vertex(cell)
+            self._update_vertex(cell)
 
 
-    def is_valid(self, u: Tuple[int, int]) -> bool:
+    def _is_valid(self, u: Tuple[int, int]) -> bool:
         """
         Check if a cell is valid (inside grid and not an obstacle), except for the goal.
         

@@ -29,7 +29,7 @@ class CentralPlanner:
         new_target = Point(target.x, target.y)
         self.targets.append((new_target, False))
 
-    def get_agent_from_target(self, target: Point):
+    def _get_agent_from_target(self, target: Point):
         """
         Returns the agent pursuing the target.
 
@@ -48,7 +48,7 @@ class CentralPlanner:
             Target point: Point
         """
         try:
-            agent_target = self.get_agent_from_target(target)
+            agent_target = self._get_agent_from_target(target)
             agent_target.has_target = False
             self.targets.remove((target, True))
         except:
@@ -56,7 +56,7 @@ class CentralPlanner:
             pass
 
 
-    def num_targets_left(self):
+    def _num_targets_left(self):
         """
         Returns the number of targets that have not been pursued yet.
         """
@@ -78,9 +78,9 @@ class CentralPlanner:
             if agent.has_target:
                 assigned_target = agent.current_target
             # Checks if there's any target left that the agent can pursue
-            elif self.num_targets_left() > 0:
+            elif self._num_targets_left() > 0:
                 # Pursue the target left
-                assigned_target = self.assign_target(agent)
+                assigned_target = self._assign_target(agent)
 
                 # Reset standing point
                 agent.set_standing_point(None)
@@ -96,7 +96,7 @@ class CentralPlanner:
 
         return my_actions
     
-    def assign_target(self, agent: MainAgent) -> Point:
+    def _assign_target(self, agent: MainAgent) -> Point:
         """
         Assign a target to agent based on the closest available target.
 
